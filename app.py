@@ -10,7 +10,7 @@ import re
 # set up logging in the assistant.log file
 log = logging.getLogger("assistant")
 
-logging.basicConfig(filename = "assistant.log", level = logging.INFO)
+logging.basicConfig(filename = "app.log", level = logging.INFO)
 
 from openai import OpenAI
 
