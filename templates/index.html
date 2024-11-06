@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <title>Ember Stacks</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap"
+    rel="stylesheet">
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</head>
+
+<body>
+  <header class="site-header">
+    <div class="header-content-wrapper">
+      <img src="{{ url_for('static', filename='ember-stacks-logo.png' ) }}" alt="" class="logo">
+      <h1>Ember Stacks</h1>
+    </div>
+  </header>
+  <main>
+    <div class="main-content-wrapper">
+      <div class="chat-container">
+        <section class="chatbot-header">
+          <h2>👋 BookBot</h2>
+          <div class="open-close-icons">
+            <figure>
+              <img src="{{ url_for('static', filename='close-icon.png' ) }}" alt="" class="logo">
+            </figure>
+            <figure>
+              <img src="{{ url_for('static', filename='open-icon.png' ) }}" alt="" class="logo">
+            </figure>
+          </div>
+        </section>
+        <section class="messages">
+          <!-- * From previous Study Buddy chatbot: Space for the messages between the user and BookBot. Replace with recipe app's chat history -->
+          <!-- {% for message in chat_history %}
+        <div class="message-role {{ 'user' if message.role == 'user' else '' }}">
+          {{ message.role.capitalize() }}
+        </div>
+        <div class="{{ 'user-message' if message.role == 'user' else 'assistant-message'}}">
+          {{ message.content }}
+        </div>
+        {% endfor %} -->
+          <!-- * End of space for the messages between the user and BookBot -->
+        </section>
+        <section class="message-input-container">
+          <form action="" method="post">
+            <textarea name="message" placeholder="Message BookBot" autofocus required></textarea>
+            <div class="button-group">
+              <button type="submit" id="send-btn"><img src="{{ url_for('static', filename='send-icon.png' ) }}"
+                  alt="Send prompt" class="send-icon"><span class="visually-hidden">Send prompt</span></button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>
+  </main>
+
+</body>
+
+</html>
