@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <title>Ember Stacks</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,200..1000;1,200..1000&display=swap"
+    rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap"
+    rel="stylesheet">
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</head>
+
+<body>
+  <header class="site-header">
+    <div class="header-content-wrapper">
+      <figure>
+        <img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo"><span class="visually-hidden">Chef
+          Boost</span>
+      </figure>
+      <div class="user-info">
+        <img src="{{ url_for('static', filename='avatar.png' ) }}" alt="" class="user-image">
+        <a href="{{ url_for('login') }}" class="link-underline">Log in</a>
+      </div>
+  </header>
+  <main>
+    <div class="main-content-wrapper">
+      <div class="">
+        <h2>Welcome to ChefBoost!</h2>
+        <p>Your go-to kitchen sidekick for delicious recipes, pro cooking tips, and real-time chef support.</p>
+        <p>Let's make something amazing together!</p>
+        <form method="POST" class="auth-form-content-wrapper">
+          <div class="form-group">
+            <label for="username">Email</label>
+            <input type="text" id="username" name="username" placeholder="Email" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="password" required>
+          </div>
+          <button type="submit" class="btn">Sign Up</button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+</body>
+
+</html>

@@ -1,28 +1,32 @@
 /* These are CSS variables. They allow you to change the theme of the chatbot by replacing the values. Read more about them here: https://developer.mozilla.org/en-US/docs/Web/CSS/Using_CSS_custom_properties */
 :root {
-  --background-color: #2D493A;
-  --header-text-color: #FFFFFF;
-  --default-background: #FFFFFF;
-  --default-text-color: #000000;
-  --accent-color-1: #8D8D8D;
+  --primary-color: #FFFFFF;
+  --secondary-color: #000000;
+  --tertiary-color: #FFA6DE;
+  --message-text: #8D8D8D;
   --message-background: #EDEDED;
   /* --border-input: 3px solid #2B6DEE; */
   /* ? needed */
-  /* --border-radius: 15px; */
+  --border-radius: 15px;
   /* ? Maybe one of the accent colors instead? */
   /* --placeholder-text-accents: #9E9C9C; */
   /* Todo check the font family. It's Myanmar MN in the design but I don't think it's a Google font. */
-  --header-text-font-family: "Open Sans", serif;
-  --body-text-font-family: "Open Sans", serif;
+  --primary-font-family: "Mulish", sans-serif;
+  --secondary-font-family: "Nunito", sans-serif;
 
+}
+
+figure {
+  margin: 0;
+  padding: 0;
 }
 
 body,
 input {
   font-size: 1rem;
   line-height: 24px;
-  color: var(--default-text-color);
-  font-family: var(--body-text-font-family);
+  color: var(--secondary-color);
+  font-family: var(--primary-font-family);
 }
 
 body {
@@ -52,9 +56,14 @@ body {
   display: flex;
   /* flex-direction: column; */
   align-items: center;
-  /* justify-content: center; */
+  justify-content: space-between;
   width: 90%;
   max-width: 1400px;
+}
+
+.site-header .logo {
+  height: 35px;
+  line-height: 0;
 }
 
 .site-header h1 {
@@ -67,12 +76,22 @@ body {
   margin: 20px;
 }
 
-.site-header .logo {
-  width: 100px;
+.user-info {
+  display: flex;
+  align-items: center;
+  margin: 20px;
+}
+
+.user-info img {
+  width: 35px;
+}
+
+.user-info p {
+  margin: 0 20px;
 }
 
 .chat-container {
-  max-width: 600px;
+  max-width: 500px;
   width: 70%;
   /* padding: 0 20px 20px 20px; */
   display: flex;
@@ -81,20 +100,28 @@ body {
   overflow-y: auto;
   box-sizing: border-box;
   justify-content: space-between;
-  /* border: var(--borders); */
-  /* border-radius: var(--border-radius); */
-  /* todo: remove after redesign as recipe app */
-  border: 3px solid red;
+  border: var(--borders);
+  border-radius: var(--border-radius);
   margin-bottom: 50px;
 }
 
-.chatbot-header {
-  background-color: var(--background-color);
-  /* margin-left: -20px; */
-  /* margin-right: -20px; */
+.chatbot-content-wrapper {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* flex-grow: 1; */
+  /* overflow-y: auto; */
+  width: 90%;
+  /* border-radius: var(--border-radius); */
+}
+
+.chatbot-header {
+  background-color: var(--tertiary-color);
+  /* margin-left: -20px; */
+  /* margin-right: -20px; */
+  display: flex;
+  /* align-items: center; */
+  justify-content: center;
 }
 
 .open-close-icons {
@@ -103,9 +130,9 @@ body {
 }
 
 .chatbot-header figure {
-  margin: 20px;
+  margin: 10px;
   /* width: 100px; */
-  width: 40px;
+  width: 16px;
 }
 
 .chatbot-header .logo {
@@ -113,8 +140,8 @@ body {
 }
 
 .chatbot-header h2 {
-  font-size: 2.5rem;
-  color: var(--header-text-color);
+  font-size: 1.5rem;
+  color: var(--secondary-color);
 }
 
 .user-message,
@@ -179,7 +206,7 @@ body {
   position: relative;
   /* Match the chat container's width */
   width: 100%;
-  background: var(--default-background);
+  background: var(--primary-color);
   box-sizing: border-box;
   display: flex;
   justify-content: center;
@@ -192,9 +219,10 @@ body {
 }
 
 .message-input-container form {
-  display: flex;
-  width: 97%;
+  /* display: flex; */
+  /* width: 97%; */
   /* padding: 10px 0; */
+  /* border-radius: var(--border-radius); */
 }
 
 form {
@@ -203,6 +231,7 @@ form {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  /* border-radius: var(--border-radius); */
 }
 
 textarea {
@@ -210,13 +239,15 @@ textarea {
   resize: vertical;
   overflow: auto;
   flex-grow: 1;
-  /* padding: 20px 0 20px 20px; */
+  padding: 10px 0 0 10px;
   /* height: 100px; */
   box-sizing: border-box;
   border: none;
-  font-family: var(--body-text-font-family);
+  font-family: var(--secondary-font-family);
   font-size: 1rem;
   background-color: var(--message-background);
+  border-radius: var(--border-radius) 0 0 var(--border-radius);
+  color: var(--message-text);
 }
 
 input[type="submit"],
@@ -228,14 +259,16 @@ input[type="button"] {
 
 .button-group {
   /* align-self: flex-end; */
-  background-color: var(--background-color);
+  background-color: var(--secondary-color);
+  border-radius: 0 10px 10px 0;
 }
 
 #send-btn {
   width: 40px;
-  height: 47px;
-  background-color: var(--background-color);
-  border: none;
+  height: 54px;
+  background-color: var(--secondary-color);
+  /* border: transparent; */
+  border-radius: 0 10px 10px 0;
 }
 
 .send-icon {
@@ -310,11 +343,10 @@ main {
   justify-content: center;
   align-items: flex-end;
   /* todo: un x the file name before pushing the code */
-  background: url('xember-stacks-bkgd.png');
+  background: url('joanie-simon-2r8BzVYZIeo-unsplash.png'), #f5e4f0;
   background-size: cover;
   background-position: center;
-  height: calc(100vh - 100px);
-  /* 100vh; */
+  height: calc(100vh - 50px);
 }
 
 .main-content-wrapper {
@@ -328,7 +360,7 @@ main {
   /* justify-content: center; */
   justify-content: flex-end;
   width: 90%;
-  max-width: 1200px;
+  max-width: 1400px;
 }
 
 .messages {
@@ -336,8 +368,9 @@ main {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  align-items: center;
   padding-top: 20px;
-  background-color: var(--default-background);
+  background-color: var(--primary-color);
 }
 
 .hidden {
