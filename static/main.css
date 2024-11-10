@@ -129,14 +129,16 @@ body {
   align-items: center;
 }
 
-.chatbot-header figure {
+.chatbot-header button {
   margin: 10px;
   /* width: 100px; */
   width: 16px;
+  background-color: transparent;
+  border: transparent;
 }
 
 .chatbot-header .logo {
-  width: 100%;
+  width: 16px;
 }
 
 .chatbot-header h2 {
