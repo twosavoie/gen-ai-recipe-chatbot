@@ -275,7 +275,7 @@ input[type="button"] {
   width: 20px;
 }
 
-input[type="submit"] {
+/* input[type="submit"] {
   flex-grow: 4;
 }
 
@@ -310,9 +310,9 @@ input[type="text"] {
 .typing-indicator::after {
   content: "•";
   animation: typing 1.5s infinite step-start;
-}
+} */
 
-@keyframes typing {
+/* @keyframes typing {
 
   0%,
   100% {
@@ -326,7 +326,7 @@ input[type="text"] {
   66% {
     content: "•••";
   }
-}
+} */
 
 .message-role {
   align-self: flex-start;
@@ -377,6 +377,93 @@ main {
   display: none;
 }
 
+/* Login Page */
+
+.login-form {
+  display: flex;
+  flex-direction: row;
+  /* Adjust height based on header height */
+  /* height: 75vh; */
+  /* Allow scrolling within this container */
+  overflow: auto;
+  align-items: center;
+  /* justify-content: center; */
+  justify-content: flex-end;
+  width: 90%;
+  max-width: 1400px;
+  margin-bottom: 35px;
+}
+
+.login-content-wrapper {
+  max-width: 500px;
+  width: 70%;
+  /* padding: 0 20px 20px 20px; */
+  display: flex;
+  flex-flow: row wrap;
+  /* flex-direction: column; */
+  /* overflow: hidden; */
+  /* overflow-y: auto; */
+  box-sizing: border-box;
+  justify-content: center;
+  border: var(--borders);
+  border-radius: var(--border-radius);
+  /* margin-bottom: 50px; */
+  background-color: var(--tertiary-color);
+  padding: 50px 30px;
+}
+
+.login-form h2 {
+  font-size: 2rem;
+}
+
+.login-form p {
+  line-height: 2.5;
+  font-size: 1.7rem;
+  text-align: center;
+}
+
+.login-form .subtext {
+  font-size: 1rem;
+}
+
+.auth-form-content-wrapper {
+  display: flex;
+  /* flex-direction: column; */
+  align-items: center;
+  justify-content: center;
+  flex-flow: row wrap;
+  /* padding: 0 20px 20px 20px; */
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  width: 60%;
+}
+
+.form-group label {
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.form-group input {
+  padding: 20px;
+  border: transparent;
+  border-radius: 50px;
+}
+
+.btn {
+  width: 60%;
+  background-color: var(--secondary-color);
+  color: var(--primary-color);
+  padding: 20px;
+  border: transparent;
+  border-radius: 50px;
+  font-size: 1.5rem;
+}
+
+/* Visually hide words associated with icons for accessibility */
 .visually-hidden {
   /* Hides the text for the submit button while making it accessible to screen readers */
   display: inline-block;
