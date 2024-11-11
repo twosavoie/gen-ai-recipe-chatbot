@@ -5,12 +5,7 @@
   --tertiary-color: #FFA6DE;
   --message-text: #8D8D8D;
   --message-background: #EDEDED;
-  /* --border-input: 3px solid #2B6DEE; */
-  /* ? needed */
   --border-radius: 15px;
-  /* ? Maybe one of the accent colors instead? */
-  /* --placeholder-text-accents: #9E9C9C; */
-  /* Todo check the font family. It's Myanmar MN in the design but I don't think it's a Google font. */
   --primary-font-family: "Mulish", sans-serif;
   --secondary-font-family: "Nunito", sans-serif;
 
@@ -43,8 +38,6 @@ body {
 .site-header {
   top: 0;
   width: 100%;
-  /* width: 90%; */
-  /* max-width: 1200px; */
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
@@ -54,7 +47,6 @@ body {
 
 .header-content-wrapper {
   display: flex;
-  /* flex-direction: column; */
   align-items: center;
   justify-content: space-between;
   width: 90%;
@@ -64,16 +56,6 @@ body {
 .site-header .logo {
   height: 35px;
   line-height: 0;
-}
-
-.site-header h1 {
-  /* margin: 50px 0; */
-  font-size: 4rem;
-  /* padding-bottom: 20px; */
-}
-
-.site-header span {
-  margin: 20px;
 }
 
 .user-info {
@@ -91,9 +73,9 @@ body {
 }
 
 .chat-container {
+  /* Todo: Check width once additional features have been decided */
   max-width: 500px;
   width: 70%;
-  /* padding: 0 20px 20px 20px; */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -109,18 +91,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* flex-grow: 1; */
-  /* overflow-y: auto; */
   width: 90%;
-  /* border-radius: var(--border-radius); */
 }
 
 .chatbot-header {
   background-color: var(--tertiary-color);
-  /* margin-left: -20px; */
-  /* margin-right: -20px; */
   display: flex;
-  /* align-items: center; */
   justify-content: center;
 }
 
@@ -131,7 +107,6 @@ body {
 
 .chatbot-header button {
   margin: 10px;
-  /* width: 100px; */
   width: 16px;
   background-color: transparent;
   border: transparent;
@@ -233,7 +208,6 @@ form {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  /* border-radius: var(--border-radius); */
 }
 
 textarea {
@@ -242,7 +216,6 @@ textarea {
   overflow: auto;
   flex-grow: 1;
   padding: 10px 0 0 10px;
-  /* height: 100px; */
   box-sizing: border-box;
   border: none;
   font-family: var(--secondary-font-family);
@@ -260,7 +233,6 @@ input[type="button"] {
 }
 
 .button-group {
-  /* align-self: flex-end; */
   background-color: var(--secondary-color);
   border-radius: 0 10px 10px 0;
 }
@@ -269,7 +241,6 @@ input[type="button"] {
   width: 40px;
   height: 54px;
   background-color: var(--secondary-color);
-  /* border: transparent; */
   border-radius: 0 10px 10px 0;
 }
 
@@ -277,6 +248,7 @@ input[type="button"] {
   width: 20px;
 }
 
+/* From previous chatbot. Check to see if any is needed once the message section populates */
 /* input[type="submit"] {
   flex-grow: 4;
 }
@@ -344,7 +316,6 @@ main {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  /* todo: un x the file name before pushing the code */
   background: url('joanie-simon-2r8BzVYZIeo-unsplash.png'), #f5e4f0;
   background-size: cover;
   background-position: center;
@@ -354,12 +325,10 @@ main {
 .main-content-wrapper {
   display: flex;
   flex-direction: row;
-  /* Adjust height based on header height */
   height: 75vh;
   /* Allow scrolling within this container */
   overflow: auto;
   align-items: stretch;
-  /* justify-content: center; */
   justify-content: flex-end;
   width: 90%;
   max-width: 1400px;
@@ -384,12 +353,8 @@ main {
 .login-form {
   display: flex;
   flex-direction: row;
-  /* Adjust height based on header height */
-  /* height: 75vh; */
-  /* Allow scrolling within this container */
   overflow: auto;
   align-items: center;
-  /* justify-content: center; */
   justify-content: flex-end;
   width: 90%;
   max-width: 1400px;
@@ -399,17 +364,12 @@ main {
 .login-content-wrapper {
   max-width: 500px;
   width: 70%;
-  /* padding: 0 20px 20px 20px; */
   display: flex;
   flex-flow: row wrap;
-  /* flex-direction: column; */
-  /* overflow: hidden; */
-  /* overflow-y: auto; */
   box-sizing: border-box;
   justify-content: center;
   border: var(--borders);
   border-radius: var(--border-radius);
-  /* margin-bottom: 50px; */
   background-color: var(--tertiary-color);
   padding: 50px 30px;
 }
@@ -419,9 +379,11 @@ main {
 }
 
 .login-form p {
-  line-height: 2.5;
-  font-size: 1.7rem;
+  line-height: 2;
+  font-size: 1.5rem;
   text-align: center;
+  margin: 0;
+  /* check width of text */
 }
 
 .login-form .subtext {
@@ -430,11 +392,9 @@ main {
 
 .auth-form-content-wrapper {
   display: flex;
-  /* flex-direction: column; */
   align-items: center;
   justify-content: center;
   flex-flow: row wrap;
-  /* padding: 0 20px 20px 20px; */
 }
 
 .form-group {
