@@ -4,12 +4,7 @@
 <head>
   <title>ChefBoost</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,200..1000;1,200..1000&display=swap"
-    rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap"
-    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
     async function sendQuery() {
       const queryInput = document.getElementById("query");
@@ -31,11 +26,16 @@
         if (data.error) {
           chatWindow.innerHTML += `<div class="assistant-message">Error: ${data.error}</div>`;
         } else {
-          chatWindow.innerHTML += `<div class="assistant-message">${data.answer}</div>`;
+          // Render Markdown in the assistant's message
+          const renderedMarkdown = marked.parse(data.answer);
+          chatWindow.innerHTML += `<div class="assistant-message">${renderedMarkdown}</div>`;
           data.sources.forEach(source => {
-            chatWindow.innerHTML += `<div class="source">Source: ${source.title} - ${source.snippet}</div>`;
+            chatWindow.innerHTML += `<p><div class="source">Source: ${source.title} - ${source.snippet}</div>`;
           });
         }
+
+        // Scroll to the latest message
+        chatWindow.scrollTop = chatWindow.scrollHeight;
       } catch (error) {
         chatWindow.innerHTML += `<div class="assistant-message">Error: ${error.message}</div>`;
       }
