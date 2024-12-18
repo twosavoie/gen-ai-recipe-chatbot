@@ -2,3 +2,7 @@ app.log
 venv
 .DS_Store
 Thumbs.db
+cache
+texts
+__pycache__
+*.bz2
