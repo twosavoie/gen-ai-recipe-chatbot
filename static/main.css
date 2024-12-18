@@ -462,3 +462,63 @@ main {
   font-weight: bold;
   text-transform: uppercase;
 }
+
+/* Chat input container */
+.message-input-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px;
+  background-color: #fff; /* White background for the input */
+  border-top: 1px solid #ccc;
+}
+
+.message-form {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  background-color: #f7f7f7;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  overflow: hidden;
+  width: 100%;
+  max-width: 600px;
+}
+
+.input-wrapper textarea {
+  flex: 1;
+  border: none;
+  padding: 10px;
+  font-size: 1rem;
+  resize: none;
+  outline: none;
+  height: 40px;
+  background-color: #f7f7f7;
+}
+
+#send-btn {
+  background-color: #2d2d2d; /* Black background for button */
+  border: none;
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 0 20px 20px 0; /* Rounded on the right side */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#send-btn .send-icon {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) invert(1); /* White icon */
+}
+
+#send-btn:hover {
+  background-color: #000000; /* Slightly darker black on hover */
+}

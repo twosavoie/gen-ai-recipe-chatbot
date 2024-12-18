@@ -10,27 +10,56 @@
     rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap"
     rel="stylesheet">
-  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+  <script>
+    async function sendQuery() {
+      const queryInput = document.getElementById("query");
+      const query = queryInput.value;
+      const chatWindow = document.getElementById("chat-window");
+
+      // Append user query to the chat window
+      chatWindow.innerHTML += `<div class="user-message">${query}</div>`;
+      queryInput.value = "";
+
+      try {
+        const response = await fetch("/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query })
+        });
+
+        const data = await response.json();
+        if (data.error) {
+          chatWindow.innerHTML += `<div class="assistant-message">Error: ${data.error}</div>`;
+        } else {
+          chatWindow.innerHTML += `<div class="assistant-message">${data.answer}</div>`;
+          data.sources.forEach(source => {
+            chatWindow.innerHTML += `<div class="source">Source: ${source.title} - ${source.snippet}</div>`;
+          });
+        }
+      } catch (error) {
+        chatWindow.innerHTML += `<div class="assistant-message">Error: ${error.message}</div>`;
+      }
+    }
+  </script>
 </head>
 
 <body>
   <header class="site-header">
     <div class="header-content-wrapper">
       <figure>
-        <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo"></a>
-        <h1 class="visually-hidden">Chef
-          Boost</h1>
+        <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo.png') }}" alt="" class="logo"></a>
+        <h1 class="visually-hidden">ChefBoost</h1>
       </figure>
       <div class="user-info">
         {% if current_user.is_authenticated %}
         <div class="avatar-circle">
           <span>{{ current_user.username[0] | upper }}</span>
         </div>
-          <a href="{{ url_for('my_account') }}">My Account</a>
-          <a href="{{ url_for('logout') }}">Logout</a>
+        <a href="{{ url_for('my_account') }}">My Account</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
         {% else %}
-          <a href="{{ url_for('login') }}">Login</a>
-          <a href="{{ url_for('signup') }}">Sign Up</a>
+        <a href="{{ url_for('login') }}">Login</a>
+        <a href="{{ url_for('signup') }}">Sign Up</a>
         {% endif %}
       </div>
     </div>
@@ -41,47 +70,26 @@
         <section class="chatbot-header">
           <div class="chatbot-content-wrapper">
             <h2>👋 ChefBoost!</h2>
-            <div class="open-close-icons">
-              <button type="button">
-                <img src="{{ url_for('static', filename='open-icon.png' ) }}" alt="" class="logo"><span
-                  class="visually-hidden">open modal</span>
-              </button>
-              <button type="button">
-                <img src="{{ url_for('static', filename='close-icon.png' ) }}" alt="" class="logo"><span
-                  class="visually-hidden">close modal</span>
-              </button>
-            </div>
           </div>
         </section>
-        <section class="messages">
-          <div class="chatbot-content-wrapper">
-            <!-- * From previous Study Buddy chatbot: Space for the messages between the user and BookBot. Replace with recipe app's chat history -->
-            <!-- {% for message in chat_history %}
-        <div class="message-role {{ 'user' if message.role == 'user' else '' }}">
-          {{ message.role.capitalize() }}
-        </div>
-        <div class="{{ 'user-message' if message.role == 'user' else 'assistant-message'}}">
-          {{ message.content }}
-        </div>
-        {% endfor %} -->
-            <!-- * End of space for the messages between the user and BookBot -->
-          </div>
+        <section class="messages" id="chat-window">
+          <!-- Messages dynamically appended here -->
         </section>
         <section class="message-input-container">
           <div class="chatbot-content-wrapper">
-            <form action="" method="post">
-              <textarea name="message" placeholder="Message BookBot" autofocus required></textarea>
-              <div class="button-group">
-                <button type="submit" id="send-btn"><img src="{{ url_for('static', filename='send-icon.png' ) }}"
-                    alt="Send prompt" class="send-icon"><span class="visually-hidden">Send prompt</span></button>
+            <form class="message-form" onsubmit="event.preventDefault(); sendQuery();">
+              <div class="input-wrapper">
+                <textarea id="query" placeholder="Ask ChefBoost..." autofocus required></textarea>
+                <button type="submit" id="send-btn">
+                  <img src="{{ url_for('static', filename='send-icon.png') }}" alt="Send" class="send-icon">
+                </button>
               </div>
             </form>
           </div>
-        </section>
+        </section>        
       </div>
     </div>
   </main>
-
 </body>
 
 </html>

@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -16,12 +16,12 @@ log = logging.getLogger("assistant")
 logging.basicConfig(filename="app.log", level=logging.INFO)
 
 # Import and configure OpenAI
-from openai import OpenAI
+from langchain_openai import ChatOpenAI
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("Missing OPENAI_API_KEY in environment variables.")
 
-client = OpenAI(api_key=api_key)
+client = ChatOpenAI(model="gpt-4o", api_key=api_key)
 
 # Flask app setup
 app = Flask(__name__)
@@ -48,9 +48,50 @@ class User(UserMixin, db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+# Initialize Supabase and LangChain components
+from supabase import create_client
+from supabase.client import ClientOptions
+from langchain_community.vectorstores import SupabaseVectorStore
+from langchain_openai import OpenAIEmbeddings
+
+supabase_https_url = os.getenv("SUPABASE_HTTPS_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+
+supabase_client = create_client(supabase_https_url, supabase_key, options=ClientOptions(
+    postgrest_client_timeout=120,
+    storage_client_timeout=120,
+    schema="public",
+  ))
+embeddings = OpenAIEmbeddings(openai_api_key=api_key)
+vector_store = SupabaseVectorStore(
+    client=supabase_client,
+    table_name="documents",
+    embedding=embeddings,
+    query_name="match_documents"
+    )
+
+# Define LLM and Retrieval Chain
+from langchain.chains import RetrievalQA
+
+retriever = vector_store.as_retriever(search_kwargs={"k": 3})  # Fetch top 3 matches
+qa_chain = RetrievalQA.from_chain_type(llm=client, retriever=retriever, return_source_documents=True)
+
+
 # Routes
-@app.route("/", methods=["GET"])
+@app.route("/", methods=["GET", "POST"])
 def index():
+    if request.method == "POST":
+        user_query = request.json.get("query")
+        if not user_query:
+            return jsonify({"error": "No query provided"}), 400
+
+        # Perform QA using the retrieval-augmented chain
+        response = qa_chain.invoke({"query": user_query})
+        answer = response["result"]
+        sources = [{"title": doc.metadata["title"], "snippet": doc.page_content[:200]} for doc in response["source_documents"]]
+
+        return jsonify({"answer": answer, "sources": sources})
+
     return render_template("index.html")
 
 @app.route("/signup", methods=["GET", "POST"])
