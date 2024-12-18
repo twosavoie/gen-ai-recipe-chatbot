@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-  <title>Ember Stacks</title>
+  <title>ChefBoost</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,13 +17,21 @@
   <header class="site-header">
     <div class="header-content-wrapper">
       <figure>
-        <img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo">
+        <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo"></a>
         <h1 class="visually-hidden">Chef
           Boost</h1>
       </figure>
       <div class="user-info">
-        <img src="{{ url_for('static', filename='user-image.png' ) }}" alt="" class="user-image">
-        <p>My account</p>
+        {% if current_user.is_authenticated %}
+        <div class="avatar-circle">
+          <span>{{ current_user.username[0] | upper }}</span>
+        </div>
+          <a href="{{ url_for('my_account') }}">My Account</a>
+          <a href="{{ url_for('logout') }}">Logout</a>
+        {% else %}
+          <a href="{{ url_for('login') }}">Login</a>
+          <a href="{{ url_for('signup') }}">Sign Up</a>
+        {% endif %}
       </div>
     </div>
   </header>

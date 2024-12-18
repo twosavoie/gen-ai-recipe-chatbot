@@ -233,7 +233,7 @@ input[type="button"] {
 }
 
 .button-group {
-  background-color: var(--secondary-color);
+  /* background-color: var(--secondary-color); */
   border-radius: 0 10px 10px 0;
 }
 
@@ -437,4 +437,28 @@ main {
   margin: -1px;
   padding: 0;
   border: 0;
+}
+
+.user-info a {
+  margin: 0 10px; /* Adjust the space as needed */
+  text-decoration: none; /* Optional: To clean up the underline */
+  color: inherit; /* Match text color with the rest of the header */
+}
+
+.user-info img {
+  margin-right: 10px; /* Add space between the image and links */
+}
+
+.avatar-circle {
+  width: 40px;
+  height: 40px;
+  background-color: #ffa6de; /* Pink Background */
+  color: #000; /* Black Text */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: bold;
+  text-transform: uppercase;
 }

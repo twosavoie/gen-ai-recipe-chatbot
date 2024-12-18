@@ -2,52 +2,41 @@
 <html lang="en">
 
 <head>
-  <title>Ember Stacks</title>
+  <title>Sign Up</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,200..1000;1,200..1000&display=swap"
-    rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap"
-    rel="stylesheet">
-  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
 </head>
 
 <body>
   <header class="site-header">
-    < class="header-content-wrapper">
-      <figure>
-        <img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo"><span class="visually-hidden">Chef
-          Boost</span>
-      </figure>
-      <div class="user-info">
-        <img src="{{ url_for('static', filename='avatar.png' ) }}" alt="" class="user-image">
-        <a href="{{ url_for('login') }}" class="link-underline">Log in</a>
-      </div>
-      </div>
+    <h1>Sign Up</h1>
   </header>
   <main>
     <div class="login-form">
       <div class="login-content-wrapper">
-        <h2>Welcome to ChefBoost!</h2>
-        <p>Your go-to kitchen sidekick for delicious recipes, pro cooking tips, and real-time chef support.</p>
-        <p class="subtext">Let's make something amazing together!</p>
+        <h2>Create Your Account</h2>
         <form method="POST" class="auth-form-content-wrapper">
+          <!-- Username Field -->
           <div class="form-group">
-            <label for="username">Email</label>
-            <input type="text" id="username" name="username" placeholder="emma@example.com" required>
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="Choose a username" required>
           </div>
+          <!-- Email Field -->
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" placeholder="you@example.com" required>
+          </div>
+          <!-- Password Field -->
           <div class="form-group">
             <label for="password">Password</label>
-            <input type="password" id="password" name="password" placeholder="Password" required>
+            <input type="password" id="password" name="password" placeholder="Enter a strong password" required>
           </div>
-          <button type="submit" class="btn">Get Started</button>
+          <!-- Submit Button -->
+          <button type="submit" class="btn">Sign Up</button>
         </form>
+        <p>Already have an account? <a href="{{ url_for('login') }}">Log In</a></p>
       </div>
     </div>
-    </div>
   </main>
-
 </body>
 
 </html>

@@ -1,2 +1,7 @@
 openai
 flask
+flask-sqlalchemy
+dotenv
+werkzeug
+flask-login
+psycopg2-binary
