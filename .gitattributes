@@ -1,0 +1,4 @@
+gutenbergindex.db filter=lfs diff=lfs merge=lfs -text
+rdf-files.tar.bz2 filter=lfs diff=lfs merge=lfs -text
+gutenberg/gutenbergindex.db filter=lfs diff=lfs merge=lfs -text
+gutenberg/rdf-files.tar.bz2 filter=lfs diff=lfs merge=lfs -text
