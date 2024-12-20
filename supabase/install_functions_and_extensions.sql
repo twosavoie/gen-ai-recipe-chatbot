@@ -32,6 +32,5 @@ begin
   where metadata @> filter
   order by documents.embedding <=> query_embedding;
 end;
-$$;
-LANGUAGE SQL
+$$
 SET statement_timeout TO '360s';
