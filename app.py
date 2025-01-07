@@ -1,24 +1,25 @@
 from flask import Flask, render_template, request, jsonify
 import time
-from openai import OpenAI
 import logging
 import datetime
-import re
 
 # app will run at: http://127.0.0.1:5000/
 
-# set up logging in the assistant.log file
+# Load environment variables from a .env file
+
+
+# Set up logging in the app.log file
 log = logging.getLogger("assistant")
+logging.basicConfig(filename="app.log", level=logging.INFO)
 
-logging.basicConfig(filename = "app.log", level = logging.INFO)
-
+# Import and configure OpenAI
 from openai import OpenAI
 
 client = OpenAI()
 
 app = Flask(__name__)
 
-# Function to add to the log in the assistant.log file
+# Function to add to the log in the app.log file
 def log_run(run_status):
     if run_status in ["cancelled", "failed", "expired"]:
         log.error(str(datetime.datetime.now()) + " Run " + run_status + "\n")
@@ -28,7 +29,6 @@ def log_run(run_status):
 def index():
     return render_template("index.html")
 
-    
-# Run the flask server
+# Run the Flask server
 if __name__ == "__main__":
     app.run()
