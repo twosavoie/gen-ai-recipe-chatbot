@@ -21,9 +21,13 @@ On Windows:
 Once the virtual environment is activated, the beginning of your terminal prompt should display (venv).
 
 <br>
-Install the necessary modules by running (in both a Mac and Windows):
+Install the necessary modules by running:
 
-`pip install --upgrade openai flask`
+On a Mac:
+`pip3 install -r requirements.txt`
+
+On Windows:
+`pip install -r requirements.txt`
 
 <br>
 To run your code, in the command line run:
