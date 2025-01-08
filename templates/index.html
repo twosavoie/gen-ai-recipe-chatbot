@@ -17,7 +17,8 @@
   <header class="site-header">
     <div class="header-content-wrapper">
       <figure>
-        <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo"></a>
+        <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo.png' ) }}" alt=""
+            class="logo"></a>
         <h1 class="visually-hidden">Chef
           Boost</h1>
       </figure>
@@ -26,11 +27,11 @@
         <div class="avatar-circle">
           <span>{{ current_user.username[0] | upper }}</span>
         </div>
-          <a href="{{ url_for('my_account') }}">My Account</a>
-          <a href="{{ url_for('logout') }}">Logout</a>
+        <a href="{{ url_for('my_account') }}">My Account</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
         {% else %}
-          <a href="{{ url_for('login') }}">Login</a>
-          <a href="{{ url_for('signup') }}">Sign Up</a>
+        <a href="{{ url_for('login') }}">Login</a>
+        <a href="{{ url_for('signup') }}">Sign Up</a>
         {% endif %}
       </div>
     </div>
