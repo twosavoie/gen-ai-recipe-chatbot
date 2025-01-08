@@ -680,8 +680,36 @@ def perform_self_query_retrieval(query, llm, vector_store, structured_query_tran
     structured_query_translator=structured_query_translator,
     )
 
-    recipes = sq_retriever.invoke(query)
-    
+    # Output parser will split the LLM result into a list of queries
+    class LineListOutputParser(BaseOutputParser[List[str]]):
+        """Output parser for a list of lines."""
+
+        def parse(self, text: str) -> List[str]:
+            lines = text.strip().split("\n")
+            return list(filter(None, lines))  # Remove empty lines
+
+
+    output_parser = LineListOutputParser()
+
+    query_prompt = PromptTemplate(
+        input_variables=["question"],
+        template="""You are an AI language model assistant. Your task is to generate five 
+        different versions of the given user question to retrieve relevant documents from a vector 
+        database. By generating multiple perspectives on the user question, your goal is to help
+        the user overcome some of the limitations of the distance-based similarity search. 
+        Provide these alternative questions separated by newlines.
+        Original question: {question}""",
+    )
+
+    # Chain
+    mq_chain = query_prompt | llm | output_parser
+
+    mq_retriever = MultiQueryRetriever(
+        retriever=sq_retriever, llm_chain=mq_chain, parser_key="lines"
+    )
+
+    recipes = mq_retriever.invoke(query)
+
     chain = RunnableParallel(nutrition=generate_nutrition_info_chain(llm), shopping_list=generate_shopping_list_chain(llm), factoids=generate_factoids_chain(llm), recipe=RunnablePassthrough())
 
     outputs = []

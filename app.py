@@ -26,7 +26,7 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 from gutenberg.pg_store_texts_and_test import perform_retrieval_qa
-from gutenberg.pg_store_recipes_and_test import perform_self_query_retrieval
+from gutenberg.pg_store_recipes_and_test_v2 import perform_self_query_retrieval
 
 
 # Load environment variables from a .env file
@@ -111,7 +111,7 @@ def create_recipe_tool():
         Tool for finding recipes.
         """
         query = f"Recipes about {input.strip()}"
-        results = perform_self_query_retrieval(query, chat_llm, recipes_vector_store)
+        results = perform_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
         if results:
             # Return JSON as a string
             return results
