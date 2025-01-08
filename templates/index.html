@@ -1,71 +1,198 @@
 <!doctype html>
 <html lang="en">
-
 <head>
-  <title>Ember Stacks</title>
+  <title>ChefBoost</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,200..1000;1,200..1000&display=swap"
-    rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap"
-    rel="stylesheet">
-  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+
+  <!-- Marked for Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    /* Basic styling for chat messages */
+    .messages {
+      max-height: 60vh;       /* Allow scrolling if needed */
+      overflow-y: auto;       /* Vertical scrollbar if content exceeds 60vh */
+      /* margin: 1rem 0; */
+      padding: 1rem;
+      background: #fafafa;
+      border-radius: 4px;
+    }
+    .assistant-message, .user-message {
+      margin: 0.5rem 0;
+      padding: 0.75rem;
+      border-radius: 4px;
+      line-height: 1.4;
+    }
+    .assistant-message {
+      background: #f7f7f7;
+    }
+    .user-message {
+      background: #d0ebff;
+      text-align: right;
+    }
+
+    /* Spinner styling */
+    .spinner {
+      /* A simple rotating circle */
+      border: 6px solid #ddd;
+      border-top: 6px solid #3498db;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto; /* center horizontally within its container */
+    }
+    @keyframes spin {
+      0%   { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+
+  <script>
+    function sendQuery() {
+      const queryInput = document.getElementById("query");
+      const query = queryInput.value.trim();
+      if (!query) return;
+
+      const chatWindow = document.getElementById("chat-window");
+
+      // Append user’s message
+      chatWindow.innerHTML += `
+        <div class="user-message">
+          ${query}
+        </div>
+      `;
+      queryInput.value = "";
+
+      // -------------------
+      // 1) Insert the spinner as a temporary assistant message
+      // -------------------
+      const spinnerId = "assistant-spinner-" + Date.now();
+      chatWindow.innerHTML += `
+        <div class="assistant-message" id="${spinnerId}">
+          <div class="spinner"></div>
+        </div>
+      `;
+      chatWindow.scrollTop = chatWindow.scrollHeight; // auto-scroll
+
+      // Prepare variables for streaming
+      let partialResponse = "";         // accumulate chunks here
+      let isFirstChunk = true;         // track the first chunk to remove spinner
+      let assistantResponseEl = null;  // the final assistant message DOM
+
+      // Open SSE connection
+      const eventSource = new EventSource(`/stream?query=${encodeURIComponent(query)}`);
+
+      eventSource.onmessage = (event) => {
+        const rawData = event.data;
+
+        if (rawData === "[DONE]") {
+          // All chunks received. Close stream and stop the spinner
+          eventSource.close();
+          return;
+        }
+
+        // -------------------
+        // 2) On first chunk, remove the spinner block & create a new "assistant-message"
+        // -------------------
+        if (isFirstChunk) {
+          isFirstChunk = false;
+
+          // Remove the spinner element
+          const spinnerEl = document.getElementById(spinnerId);
+          if (spinnerEl) spinnerEl.remove();
+
+          // Create a new assistant message DOM for streamed content
+          assistantResponseEl = document.createElement("div");
+          assistantResponseEl.classList.add("assistant-message");
+          chatWindow.appendChild(assistantResponseEl);
+        }
+
+        // Try to parse as JSON if your server escapes the text, otherwise use as-is
+        let chunk;
+        try {
+          chunk = JSON.parse(rawData);
+        } catch {
+          chunk = rawData;
+        }
+
+        // Append chunk to partialResponse
+        partialResponse += chunk;
+
+        // Convert partialResponse (Markdown) to HTML
+        const html = marked.parse(partialResponse);
+
+        // Update the assistant message with rendered Markdown
+        assistantResponseEl.innerHTML = html;
+
+        // Auto-scroll to bottom
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+      };
+
+      eventSource.onerror = () => {
+        // On error, remove spinner if it’s still there
+        const spinnerEl = document.getElementById(spinnerId);
+        if (spinnerEl) spinnerEl.remove();
+
+        // Optionally append an error message
+        chatWindow.innerHTML += `
+          <div class="assistant-message">
+            Error occurred while streaming data.
+          </div>
+        `;
+
+        eventSource.close();
+      };
+    }
+  </script>
 </head>
 
 <body>
   <header class="site-header">
     <div class="header-content-wrapper">
       <figure>
-        <img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo">
-        <h1 class="visually-hidden">Chef
-          Boost</h1>
+        <a href="{{ url_for('index') }}">
+          <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="logo">
+        </a>
+        <h1 class="visually-hidden">ChefBoost</h1>
       </figure>
       <div class="user-info">
-        <img src="{{ url_for('static', filename='user-image.png' ) }}" alt="" class="user-image">
-        <p>My account</p>
+        {% if current_user.is_authenticated %}
+        <div class="avatar-circle">
+          <span>{{ current_user.username[0] | upper }}</span>
+        </div>
+        <a href="{{ url_for('my_account') }}">My Account</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
+        {% else %}
+        <a href="{{ url_for('login') }}">Login</a>
+        <a href="{{ url_for('signup') }}">Sign Up</a>
+        {% endif %}
       </div>
     </div>
   </header>
+
   <main>
     <div class="main-content-wrapper">
       <div class="chat-container">
         <section class="chatbot-header">
           <div class="chatbot-content-wrapper">
             <h2>👋 ChefBoost!</h2>
-            <div class="open-close-icons">
-              <button type="button">
-                <img src="{{ url_for('static', filename='open-icon.png' ) }}" alt="" class="logo"><span
-                  class="visually-hidden">open modal</span>
-              </button>
-              <button type="button">
-                <img src="{{ url_for('static', filename='close-icon.png' ) }}" alt="" class="logo"><span
-                  class="visually-hidden">close modal</span>
-              </button>
-            </div>
           </div>
         </section>
-        <section class="messages">
-          <div class="chatbot-content-wrapper">
-            <!-- * From previous Study Buddy chatbot: Space for the messages between the user and BookBot. Replace with recipe app's chat history -->
-            <!-- {% for message in chat_history %}
-        <div class="message-role {{ 'user' if message.role == 'user' else '' }}">
-          {{ message.role.capitalize() }}
-        </div>
-        <div class="{{ 'user-message' if message.role == 'user' else 'assistant-message'}}">
-          {{ message.content }}
-        </div>
-        {% endfor %} -->
-            <!-- * End of space for the messages between the user and BookBot -->
-          </div>
+
+        <!-- Scrollable container for chat messages -->
+        <section class="messages" id="chat-window">
+          <!-- SSE messages get appended here -->
         </section>
+
         <section class="message-input-container">
           <div class="chatbot-content-wrapper">
-            <form action="" method="post">
-              <textarea name="message" placeholder="Message BookBot" autofocus required></textarea>
-              <div class="button-group">
-                <button type="submit" id="send-btn"><img src="{{ url_for('static', filename='send-icon.png' ) }}"
-                    alt="Send prompt" class="send-icon"><span class="visually-hidden">Send prompt</span></button>
+            <form class="message-form" onsubmit="event.preventDefault(); sendQuery();">
+              <div class="input-wrapper">
+                <textarea id="query" placeholder="Ask ChefBoost..." autofocus required></textarea>
+                <button type="submit" id="send-btn">
+                  <img src="{{ url_for('static', filename='send-icon.png') }}" alt="Send" class="send-icon">
+                </button>
               </div>
             </form>
           </div>
@@ -73,7 +200,5 @@
       </div>
     </div>
   </main>
-
 </body>
-
 </html>
