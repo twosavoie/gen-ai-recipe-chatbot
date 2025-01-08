@@ -18,10 +18,8 @@ from supabase.client import ClientOptions
 # LangChain imports
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import SupabaseVectorStore
-from langchain.chains import RetrievalQAWithSourcesChain
 
 from langchain.agents import tool
-from langchain_community.query_constructors.supabase import SupabaseVectorTranslator
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -95,10 +93,6 @@ recipes_vector_store = SupabaseVectorStore(
     embedding=embeddings,
     query_name="match_recipes"
     )
-
-# Define LLM and Retrieval Chain
-books_retriever = books_vector_store.as_retriever(search_kwargs={"k": 3})  # Fetch top 3 matches
-books_qa_chain = RetrievalQAWithSourcesChain.from_chain_type(llm=chat_llm, retriever=books_retriever, return_source_documents=True)
 
 # Define MemorySaver instance for langgraph agent
 memory = MemorySaver()
