@@ -1,7 +1,7 @@
 openai
 flask
 flask-sqlalchemy
-dotenv
+python-dotenv
 werkzeug
 flask-login
 psycopg2-binary
@@ -9,4 +9,8 @@ jsonify
 supabase
 langchain
 langchain-community
-langchain_openai
+langchain-openai
+langgraph
+lark
+nltk
+spacy
