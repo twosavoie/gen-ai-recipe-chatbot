@@ -8,7 +8,7 @@ import datetime
 # app will run at: http://127.0.0.1:5000/
 
 # Load environment variables from a .env file
-load_dotenv()
+load_dotenv(override=True)
 
 # Set up logging in the app.log file
 log = logging.getLogger("assistant")
