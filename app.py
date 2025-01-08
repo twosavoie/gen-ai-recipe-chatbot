@@ -5,8 +5,10 @@ import time
 import logging
 import datetime
 
+# app will run at: http://127.0.0.1:5000/
+
 # Load environment variables from a .env file
-load_dotenv()
+load_dotenv(override=True)
 
 # Set up logging in the app.log file
 log = logging.getLogger("assistant")
@@ -19,6 +21,8 @@ if not api_key:
     raise ValueError("Missing OPENAI_API_KEY in environment variables.")
 
 client = OpenAI(api_key=api_key)
+
+# log.info(api_key)
 
 app = Flask(__name__)
 
