@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-  <title>Ember Stacks</title>
+  <title>Sign Up | ChefBoost</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,7 +17,8 @@
   <header class="site-header">
     < class="header-content-wrapper">
       <figure>
-        <img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo"><span class="visually-hidden">Chef
+        <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo.png' ) }}" alt=""
+            class="logo"></a><span class="visually-hidden">Chef
           Boost</span>
       </figure>
       <div class="user-info">
