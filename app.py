@@ -1,15 +1,33 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+import time
+import json
+import logging
+import datetime
+from dotenv import load_dotenv
+
+# Flask imports
+from flask import Flask, render_template, request, redirect, url_for, flash, Response, stream_with_context
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from dotenv import load_dotenv
-import time
-import logging
-import datetime
+
+# Supabase imports
+from supabase import create_client
+from supabase.client import ClientOptions
+
+# LangChain imports
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import SupabaseVectorStore
+
+from langchain.agents import tool
+from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
+
+from gutenberg.pg_store_texts_and_test import perform_retrieval_qa
+
 
 # Load environment variables from a .env file
-load_dotenv()
+load_dotenv(override=True)
 
 # Set up logging in the app.log file
 log = logging.getLogger("assistant")
@@ -21,7 +39,7 @@ api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("Missing OPENAI_API_KEY in environment variables.")
 
-client = ChatOpenAI(model="gpt-4o", api_key=api_key)
+chat_llm = ChatOpenAI(model="gpt-4o", api_key=api_key)
 
 # Flask app setup
 app = Flask(__name__)
@@ -49,10 +67,6 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # Initialize Supabase and LangChain components
-from supabase import create_client
-from supabase.client import ClientOptions
-from langchain_community.vectorstores import SupabaseVectorStore
-from langchain_openai import OpenAIEmbeddings
 
 supabase_https_url = os.getenv("SUPABASE_HTTPS_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
@@ -62,38 +76,105 @@ supabase_client = create_client(supabase_https_url, supabase_key, options=Client
     storage_client_timeout=120,
     schema="public",
   ))
+
 embeddings = OpenAIEmbeddings(openai_api_key=api_key)
-vector_store = SupabaseVectorStore(
+
+books_vector_store = SupabaseVectorStore(
     client=supabase_client,
-    table_name="documents",
+    table_name="books",
     embedding=embeddings,
-    query_name="match_documents"
+    query_name="match_books"
     )
 
-# Define LLM and Retrieval Chain
-from langchain.chains import RetrievalQA
+# Define MemorySaver instance for langgraph agent
+memory = MemorySaver()
 
-retriever = vector_store.as_retriever(search_kwargs={"k": 3})  # Fetch top 3 matches
-qa_chain = RetrievalQA.from_chain_type(llm=client, retriever=retriever, return_source_documents=True)
+# Define agent tools
+def create_general_info_tool():
+    @tool
+    def get_general_info(input: str) -> str:
+        """
+        Tool for answering general cooking questions.
+        """
+        query = f"Find information about: {input.strip()}"
+        result = perform_retrieval_qa(query, chat_llm, books_vector_store)
+        answer = result["answer"]
+        sources = result["sources"]
+        if result:
+            # Return JSON as a string
+            return json.dumps({"answer": answer, "sources": sources})
+        else:
+            return json.dumps({"answer": "No information found.", "sources": []})
 
+    return get_general_info
 
 # Routes
-@app.route("/", methods=["GET", "POST"])
+# Index route
+@app.route("/", methods=["GET"])
+@login_required
 def index():
-    if request.method == "POST":
-        user_query = request.json.get("query")
-        if not user_query:
-            return jsonify({"error": "No query provided"}), 400
+    return render_template("index.html")  # Serve the chat interface
 
-        # Perform QA using the retrieval-augmented chain
-        response = qa_chain.invoke({"query": user_query})
-        answer = response["result"]
-        sources = [{"title": doc.metadata["title"], "snippet": doc.page_content[:200]} for doc in response["source_documents"]]
+# Stream route
+@app.route("/stream", methods=["GET"])
+@login_required
+def stream():
+    general_info_tool = create_general_info_tool()
+    graph = create_react_agent(
+        model=chat_llm,
+        tools=[general_info_tool],
+        checkpointer=memory,
+        debug=True
+    )
 
-        return jsonify({"answer": answer, "sources": sources})
+    inputs = {"messages": [("user", request.args.get("query", ""))]}
+    config = {"configurable": {"thread_id": "thread-1"}}
 
-    return render_template("index.html")
+    HEARTBEAT_INTERVAL = 5
 
+    @stream_with_context
+    def generate():
+        stream_iterator = graph.stream(inputs, config, stream_mode="values")
+        last_sent_time = time.time()
+
+        while True:
+            # Check if we've been idle too long
+            if time.time() - last_sent_time > HEARTBEAT_INTERVAL:
+                # Send a heartbeat
+                yield "data: [heartbeat]\n\n"
+                last_sent_time = time.time()
+
+            try:
+                step = next(stream_iterator)
+            except StopIteration:
+                # No more data from the agent
+                break
+            except Exception as e:
+                # On any exception, report it and stop
+                yield f"data: Error: {str(e)}\n\n"
+                return
+
+            # We got a new message from the agent
+            message = step["messages"][-1]
+            if isinstance(message, tuple):
+                pass
+                # yield f"data: {message[1]}\n\n" # Uncomment to allow for user messages to be displayed
+            else:
+                if message.response_metadata.get("finish_reason") == "stop":
+                    escaped_message = json.dumps(message.content)
+                    yield f"data: {escaped_message}\n\n"
+                    break
+            last_sent_time = time.time()
+
+        # Final marker
+        yield "data: [DONE]\n\n"
+
+    return Response(
+        generate(),
+        content_type="text/event-stream"
+    )
+
+# Sign up route
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
@@ -118,6 +199,7 @@ def signup():
 
     return render_template("signup.html")
 
+# Login route
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -131,10 +213,11 @@ def login():
 
         login_user(user)
         flash("Logged in successfully!", "success")
-        return redirect(url_for("my_account"))
+        return redirect("/")
 
     return render_template("login.html")
 
+# My Account route
 @app.route("/my_account", methods=["GET", "POST"])
 @login_required
 def my_account():
@@ -158,6 +241,7 @@ def my_account():
 
     return render_template("my_account.html", user=current_user)
 
+# Logout route
 @app.route("/logout")
 @login_required
 def logout():
