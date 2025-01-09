@@ -80,7 +80,7 @@ def download_and_store_books(matching_books, vector_store):
             for i, chunk in enumerate(chunks):
                 # Construct metadata as a JSON object
                 metadata = {
-                    "title": title,
+                    "source": title, # Key must be named source for compatibility with LangChain
                     "gutenberg_id": str(book_id),
                     "chunk_index": i,
                     "content_length": len(chunk)
