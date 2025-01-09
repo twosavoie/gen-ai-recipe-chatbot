@@ -56,7 +56,7 @@ SPECIAL_CONSIDERATIONS = ["vegetarian", "vegan", "keto", "nut-free", "dairy-free
 # GUTENBERG SEARCH & METADATA
 ###############################################################################
 
-def search_gutenberg_titles(keywords, top_n=10, start_date=None, end_date=None):
+def search_gutenberg_titles(cache, keywords, top_n=10, start_date=None, end_date=None):
     """
     Search Project Gutenberg for cooking-related books, optionally filtered by date.
     Returns: List of (gutenbergbookid, title).
@@ -148,7 +148,7 @@ def construct_metadata(gutenberg_book_id, cache):
         print(f"No metadata found for book ID {gutenberg_book_id}.")
         return {
             "gutenberg_id": gutenberg_book_id,
-            "title": "Unknown",
+            "source": "Unknown", # Key must be 'source' for LangChain
             "authors": [],
             "subjects": []
         }
@@ -169,7 +169,7 @@ def construct_metadata(gutenberg_book_id, cache):
     return {
         "gutenberg_id": gutenberg_id,
         "date_issued": dateissued,
-        "title": title,
+        "source": title,
         "authors": authors.split("# ") if authors else [],
         "subjects": subjects.split("# ") if subjects else [],
         **nlp_metadata
