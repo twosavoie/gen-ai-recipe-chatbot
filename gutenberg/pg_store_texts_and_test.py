@@ -11,7 +11,6 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import SupabaseVectorStore
-from langchain.chains import RetrievalQAWithSourcesChain
 
 # Supabase
 from supabase import create_client, Client
@@ -107,13 +106,6 @@ def download_and_store_books(matching_books, vector_store):
             print(f"Error storing batch {i // batch_size + 1}: {e}")
 
 
-def perform_retrieval_qa(query, llm, vector_store):
-    """Perform a retreival qa using LangChain."""
-    print("Performing retrieval qa...")
-    books_retriever = vector_store.as_retriever(search_kwargs={"k": 3})  # Fetch top 3 matches
-    books_qa_chain = RetrievalQAWithSourcesChain.from_chain_type(llm=llm, retriever=books_retriever, chain_type="stuff", return_source_documents=True)
-    return books_qa_chain.invoke({"question": query})
-
 def perform_similarity_search(query, vector_store):
     """Perform a similarity search using LangChain."""
     print("Performing similarity search...")
@@ -201,16 +193,13 @@ def main():
     # Perform query
     query = "How to bake a cake"
     print(f"Performing similarity search with: {query}")
-    #results = perform_similarity_search(query, vector_store)
-    results = perform_retrieval_qa(query, chat_llm, vector_store)
+    results = perform_similarity_search(query, vector_store)
 
-    print("-" * 70)
-    print(f"Answer:\n\n {results['answer']}")
-    print("-" * 70)
-    print(f"Sources:\n\n {results['sources']}")
-    print("-" * 70)
-    print(f"Source Documents:\n\n {results['source_documents']}")
-    print("-" * 70)
+    for i, res in enumerate(results, start=1):
+        snippet = res.page_content[:500].replace("\n", " ") + "..."
+        print(f"[Result {i}] Snippet: {snippet}")
+        print(f"Metadata: {res.metadata}")
+        print("-" * 70)
 
 if __name__ == "__main__":
     main()
