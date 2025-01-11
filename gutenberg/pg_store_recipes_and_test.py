@@ -51,6 +51,8 @@ CUISINE = ["italian", "french", "german", "australian", "english",  "american", 
 
 SPECIAL_CONSIDERATIONS = ["vegetarian", "vegan", "keto", "nut-free", "dairy-free", "gluten-free", "low-carb"]   
 
+# Global for spaCy NLP model
+nlp = None
 
 ###############################################################################
 # GUTENBERG SEARCH & METADATA
