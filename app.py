@@ -1,4 +1,6 @@
+import os
 from flask import Flask, render_template, request, jsonify
+from dotenv import load_dotenv
 import time
 import logging
 import datetime
@@ -6,7 +8,7 @@ import datetime
 # app will run at: http://127.0.0.1:5000/
 
 # Load environment variables from a .env file
-
+load_dotenv(override=True)
 
 # Set up logging in the app.log file
 log = logging.getLogger("assistant")
@@ -14,8 +16,13 @@ logging.basicConfig(filename="app.log", level=logging.INFO)
 
 # Import and configure OpenAI
 from openai import OpenAI
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise ValueError("Missing OPENAI_API_KEY in environment variables.")
 
-client = OpenAI()
+client = OpenAI(api_key=api_key)
+
+# log.info(api_key)
 
 app = Flask(__name__)
 
