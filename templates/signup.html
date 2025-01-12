@@ -15,7 +15,7 @@
 
 <body>
   <header class="site-header">
-    < class="header-content-wrapper">
+    <div class="header-content-wrapper">
       <figure>
         <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo.png' ) }}" alt=""
             class="logo"></a><span class="visually-hidden">Chef
@@ -25,7 +25,7 @@
         <img src="{{ url_for('static', filename='avatar.png' ) }}" alt="" class="user-image">
         <a href="{{ url_for('login') }}" class="link-underline">Log in</a>
       </div>
-      </div>
+    </div>
   </header>
   <main>
     <div class="login-form">
