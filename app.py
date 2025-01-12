@@ -23,7 +23,7 @@ if not api_key:
 
 client = OpenAI(api_key=api_key)
 
-log.info(api_key)
+# log.info(api_key)
 
 app = Flask(__name__)
 
