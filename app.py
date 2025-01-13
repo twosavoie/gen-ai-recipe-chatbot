@@ -8,6 +8,8 @@ import time
 import logging
 import datetime
 
+# app will run at: http://127.0.0.1:5000/
+
 # Load environment variables from a .env file
 load_dotenv(override=True)
 
