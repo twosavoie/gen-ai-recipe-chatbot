@@ -1,3 +1,8 @@
 openai
 flask
 python-dotenv
+flask-sqlalchemy
+werkzeug
+flask-login
+supabase
+psycopg2-binary
