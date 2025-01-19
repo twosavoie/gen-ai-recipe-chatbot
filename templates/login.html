@@ -3,6 +3,7 @@
 
 <head>
   <title>Login | ChefBoost</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,12 +18,11 @@
   <header class="site-header">
     <div class="header-content-wrapper">
       <figure>
-        <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo.png' ) }}" alt=""
-            class="logo"></a>
-        <span class="visually-hidden">Chef
-          Boost</span>
+        <a href="{{ url_for('index') }}">
+          <img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo">
+          <span class="visually-hidden">ChefBoost</span>
+        </a>
       </figure>
-      <h1>Login</h1>
       <div class="user-info">
         <img src="{{ url_for('static', filename='avatar.png' ) }}" alt="" class="user-image">
         <a href="{{ url_for('signup') }}" class="link-underline">Sign up</a>
@@ -32,7 +32,7 @@
   <main>
     <div class="login-form">
       <div class="login-content-wrapper">
-        <h2>Log into your account</h2>
+        <h1>Log into your account</h1>
         <form method="POST" class="auth-form-content-wrapper">
           <div class="form-group">
             <label for="username">Username</label>

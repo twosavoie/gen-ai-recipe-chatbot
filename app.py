@@ -8,6 +8,10 @@ import time
 import logging
 import datetime
 
+# Supabase imports
+from supabase import create_client
+from supabase.client import ClientOptions
+
 # app will run at: http://127.0.0.1:5000/
 
 # Load environment variables from a .env file
