@@ -56,6 +56,7 @@ def load_user(user_id):
 
 # Routes
 @app.route("/", methods=["GET"])
+@login_required
 def index():
     return render_template("index.html")
 
@@ -96,7 +97,7 @@ def login():
 
         login_user(user)
         flash("Logged in successfully!", "success")
-        return redirect(url_for("my_account"))
+        return redirect(url_for("index"))
 
     return render_template("login.html")
 
