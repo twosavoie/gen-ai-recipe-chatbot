@@ -56,12 +56,13 @@ body {
 .site-header .logo {
   height: 35px;
   line-height: 0;
+  margin: 20px 0 20px 0;
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  margin: 20px;
+  margin: 0 20px 0 20px;
 }
 
 .user-info img {
@@ -73,9 +74,8 @@ body {
 }
 
 .chat-container {
-  /* Todo: Check width once additional features have been decided */
-  max-width: 500px;
-  width: 70%;
+  max-width: 800px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -270,7 +270,7 @@ main {
   /* Allow scrolling within this container */
   overflow: auto;
   align-items: stretch;
-  justify-content: flex-end;
+  justify-content: center;
   width: 90%;
   max-width: 1400px;
 }
@@ -296,15 +296,15 @@ main {
   flex-direction: row;
   overflow: auto;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   width: 90%;
   max-width: 1400px;
   margin-bottom: 35px;
 }
 
 .login-content-wrapper {
-  max-width: 500px;
-  width: 70%;
+  max-width: 800px;
+  width: 100%;
   display: flex;
   flex-flow: row wrap;
   box-sizing: border-box;
@@ -504,4 +504,33 @@ main {
   padding: 10px;
   border-radius: 8px;
   overflow-x: auto;
+}
+
+@media screen and (min-width: 768px) {
+  .chatbot-content-wrapper {
+    width: 75%;
+  }
+}
+
+@media screen and (min-width: 1200px) {
+  .main-content-wrapper {
+    justify-content: flex-end;
+  }
+
+  .chat-container {
+    max-width: 500px;
+  }
+
+  .chatbot-content-wrapper {
+    width: 90%;
+  }
+
+  .login-form {
+    justify-content: flex-end;
+  }
+
+  .login-content-wrapper {
+    max-width: 500px;
+  }
+
 }
