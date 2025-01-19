@@ -54,6 +54,17 @@ class User(UserMixin, db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+# * Per Vincent - not needed in the 02 branch. Was in the branch when I initialized the db and added the user table
+# # Initialize Supabase and LangChain components
+# supabase_https_url = os.getenv("SUPABASE_HTTPS_URL")
+# supabase_key = os.getenv("SUPABASE_KEY")
+
+# supabase_client = create_client(supabase_https_url, supabase_key, options=ClientOptions(
+#     postgrest_client_timeout=120,
+#     storage_client_timeout=120,
+#     schema="public",
+#   ))
+
 # Routes
 @app.route("/", methods=["GET"])
 def index():
@@ -137,8 +148,21 @@ def log_run(run_status):
         log.error(str(datetime.datetime.now()) + " Run " + run_status + "\n")
 
 # Run the Flask server
+# if __name__ == "__main__":
+#     with app.app_context():
+#         db.create_all()  # Ensure the database is created
+#         print("Database created.")
+#     app.run(debug=True)
+
+
+# Create a Flask CLI command for initializing the database
+# Run "flask init-db" from the command line  to initialize the database
+@app.cli.command("init-db")
+def init_db():
+    db.create_all()
+    db.session.commit()
+    print("Database initialized!")
+    
+    # Run the Flask server
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()  # Ensure the database is created
-        print("Database created.")
-    app.run(debug=True)
+    app.run()
