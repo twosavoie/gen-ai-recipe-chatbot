@@ -166,4 +166,4 @@ def init_db():
     
     # Run the Flask server
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
