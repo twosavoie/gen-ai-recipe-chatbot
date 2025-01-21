@@ -9,8 +9,8 @@ import logging
 import datetime
 
 # Supabase imports
-from supabase import create_client
-from supabase.client import ClientOptions
+# from supabase import create_client
+# from supabase.client import ClientOptions
 
 # app will run at: http://127.0.0.1:5000/
 
@@ -135,7 +135,6 @@ def my_account():
 
     return render_template("my_account.html", user=current_user)
 
-#? Needed? Vincent removed from the Nature Nook app
 @app.route("/logout")
 @login_required
 def logout():
@@ -149,21 +148,25 @@ def log_run(run_status):
         log.error(str(datetime.datetime.now()) + " Run " + run_status + "\n")
 
 # Run the Flask server
-# if __name__ == "__main__":
-#     with app.app_context():
-#         db.create_all()  # Ensure the database is created
-#         print("Database created.")
-#     app.run(debug=True)
+# Mac: python3 app.py
+# Windows: python app.py
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()  # Ensure the database is created
+        print("Database created.")
+    app.run(debug=True)
 
-
+# * Vincent said this isnt needed to run the app. Will try running app.py first then the flask server
+# * Only needed to run app.py
+# ? Is there a debugger option for app.py? debug is set to true above
 # Create a Flask CLI command for initializing the database
 # Run "flask init-db" from the command line  to initialize the database
-@app.cli.command("init-db")
-def init_db():
-    db.create_all()
-    db.session.commit()
-    print("Database initialized!")
+# @app.cli.command("init-db")
+# def init_db():
+#     db.create_all()
+#     db.session.commit()
+#     print("Database initialized!")
     
-    # Run the Flask server
-if __name__ == "__main__":
-    app.run(debug=True)
+#     # Run the Flask server
+# if __name__ == "__main__":
+#     app.run(debug=True)

@@ -3,22 +3,22 @@
 The script will be run in a virtual environment. Start by creating a virtual environment:
 
 On a Mac:
-`python3 -m venv chatbot-env`
+`python3 -m venv venv`
 
 On Windows:
-`python -m venv chatbot-env`
+`python -m venv venv`
 
 <br>
 After creating the virtual environment, you need to activate it:
 
 On a Mac:
-`source chatbot-env/bin/activate`
+`source venv/bin/activate`
 
 On Windows:
-`source chatbot-env/Scripts/activate`
+`source venv/Scripts/activate`
 
 <br>
-Once the virtual environment is activated, the beginning of your terminal prompt should display (chatbot-env).
+Once the virtual environment is activated, the beginning of your terminal prompt should display (venv).
 
 <br>
 Install the necessary modules by running:
@@ -32,11 +32,11 @@ On Windows:
 <br>
 To run your code, in the command line run:
 
-Without a debugger:
-`flask run`
+On a Mac:
+`python3 app.py`
 
-With a debugger:
-`flask run --debug`
+On Windows:
+`python app.py`
 
 <br>
 The app will run at: http://127.0.0.1:5000/
