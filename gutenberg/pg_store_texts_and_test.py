@@ -3,11 +3,9 @@ import argparse
 from dotenv import load_dotenv
 
 # Additional imports for the two new variants
-from operator import itemgetter
 from langchain_core.output_parsers import StrOutputParser
 from langchain import hub
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 # Project Gutenberg
 from gutenbergpy.gutenbergcache import GutenbergCache
@@ -115,6 +113,10 @@ def download_and_store_books(matching_books, vector_store):
 # RAG FUNCTIONS
 ###############################################################################
 
+###############################################################################
+# Perform Retrieval QA
+###############################################################################
+
 def perform_retrieval_qa(query, llm, vector_store):
     """
     Perform a retrieval QA using LangChain. 
@@ -150,6 +152,9 @@ def perform_retrieval_qa(query, llm, vector_store):
         ]
     }
 
+###############################################################################
+# Similarity Search
+###############################################################################
 
 def perform_similarity_search(query, vector_store):
     """
@@ -174,6 +179,9 @@ def perform_similarity_search(query, vector_store):
         "results": results_list
     }
 
+###############################################################################
+# RAG DECOMPOSITION
+###############################################################################
 
 def perform_rag_decomposition(query, llm, vector_store):
     """
