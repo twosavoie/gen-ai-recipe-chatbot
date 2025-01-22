@@ -476,7 +476,7 @@ def download_and_store_books(matching_books, cache, llm, vector_store, oversampl
 # BASELINE SIMILARITY SEARCH (SINGLE-QUERY)
 ###############################################################################
 
-def perform_similarity_search(query, vector_store):
+def perform_similarity_search(query, llm, vector_store):
     """
     Perform HyDE retrieval (or standard) with a single query.
     """
@@ -485,9 +485,9 @@ def perform_similarity_search(query, vector_store):
     print(recipes)
     
     chain = RunnableParallel(
-        # nutrition=generate_nutrition_info_chain(llm),
-        # shopping_list=generate_shopping_list_chain(llm),
-        # factoids=generate_factoids_chain(llm),
+        nutrition=generate_nutrition_info_chain(llm),
+        shopping_list=generate_shopping_list_chain(llm),
+        factoids=generate_factoids_chain(llm),
         recipe=RunnablePassthrough()
     )
 
@@ -496,9 +496,9 @@ def perform_similarity_search(query, vector_store):
     for i, recipe in enumerate(recipes, start=1):
         output = chain.invoke({"text": recipe.page_content, "metadata": recipe.metadata})
         processed_output = {
-            "nutrition": None, #output["nutrition"],
-            "shopping_list": None, #output["shopping_list"],
-            "factoids": None, #output["factoids"],
+            "nutrition": output["nutrition"],
+            "shopping_list": output["shopping_list"],
+            "factoids": output["factoids"],
             "recipe": output["recipe"]
         }
         outputs.append(processed_output)
@@ -927,7 +927,7 @@ def main():
         )
     else:
         print(f"\nSimilarity search with: {query}")
-        results = perform_similarity_search(query, recipes_vector_store)
+        results = perform_similarity_search(query, chat_llm, recipes_vector_store)
     # =================================================================== #
 
     for i, res in enumerate(results, start=1):
