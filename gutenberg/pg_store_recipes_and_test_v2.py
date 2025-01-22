@@ -8,20 +8,12 @@ from dotenv import load_dotenv
 from gutenbergpy.gutenbergcache import GutenbergCache
 from gutenbergpy.textget import get_text_by_id
 
-# ====================== HYDE CHANGES: New Imports ====================== #
-from langchain.chains import HypotheticalDocumentEmbedder
-from langchain.prompts import PromptTemplate
-# ====================================================================== #
-
 # LangChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-
-# ====================== HYDE CHANGES: Keep OpenAIEmbeddings ====================== #
-# Keep using OpenAIEmbeddings for the base embeddings
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-# ================================================================================ #
-
+from langchain.chains import HypotheticalDocumentEmbedder
+from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain.chains.query_constructor.schema import AttributeInfo
 from langchain.retrievers.self_query.base import SelfQueryRetriever
@@ -31,12 +23,8 @@ from langchain.chains.query_constructor.base import StructuredQueryOutputParser,
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain.retrievers.multi_query import MultiQueryRetriever
 from typing import List
-from langchain_core.output_parsers import BaseOutputParser
 from langchain_core.prompts import PromptTemplate
-from pydantic import BaseModel, Field
-from langchain.chains.llm import LLMChain
 
 # ============== RAG Fusion: Extra Imports ================
 from langchain.load import dumps, loads
