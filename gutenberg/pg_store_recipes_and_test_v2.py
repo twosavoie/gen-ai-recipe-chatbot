@@ -8,20 +8,12 @@ from dotenv import load_dotenv
 from gutenbergpy.gutenbergcache import GutenbergCache
 from gutenbergpy.textget import get_text_by_id
 
-# ====================== HYDE CHANGES: New Imports ====================== #
-from langchain.chains import HypotheticalDocumentEmbedder
-from langchain.prompts import PromptTemplate
-# ====================================================================== #
-
 # LangChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-
-# ====================== HYDE CHANGES: Keep OpenAIEmbeddings ====================== #
-# Keep using OpenAIEmbeddings for the base embeddings
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-# ================================================================================ #
-
+from langchain.chains import HypotheticalDocumentEmbedder
+from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain.chains.query_constructor.schema import AttributeInfo
 from langchain.retrievers.self_query.base import SelfQueryRetriever
