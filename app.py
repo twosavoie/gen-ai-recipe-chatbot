@@ -30,9 +30,6 @@ from langchain.chains import HypotheticalDocumentEmbedder
 from gutenberg.pg_store_texts_and_test import (
     perform_similarity_search,
     perform_retrieval_qa,
-    perform_rag_decomposition,
-    perform_rag_decomposition_answer_recursively,
-    perform_rag_decomposition_answer_individually,
     perform_rag_step_back_prompting
 )
 
@@ -162,53 +159,6 @@ def create_retrieval_qa_tool():
 
 
 ####################################################################
-# RAG Decomposition (Books)
-####################################################################
-def create_rag_decomposition_tool():
-    @tool
-    def get_rag_decomposition(input: str) -> str:
-        """
-        Tool for multi-step RAG Decomposition (standard) on the 'books' corpus.
-        """
-        query = input.strip()
-        results = perform_rag_decomposition(query, chat_llm, books_vector_store)
-        # Usually returns a dict with sub-queries, answers, sources
-        return json.dumps(results, default=str)
-    return get_rag_decomposition
-
-
-####################################################################
-# RAG Decomposition Answer Recursively (Books)
-####################################################################
-def create_rag_decomposition_recursive_tool():
-    @tool
-    def get_rag_decomposition_recursive(input: str) -> str:
-        """
-        Tool for RAG Decomposition with an iterative/recursive approach.
-        """
-        query = input.strip()
-        results = perform_rag_decomposition_answer_recursively(query, chat_llm, books_vector_store)
-        return json.dumps(results, default=str)
-    return get_rag_decomposition_recursive
-
-
-####################################################################
-# RAG Decomposition Answer Individually (Books)
-####################################################################
-def create_rag_decomposition_individual_tool():
-    @tool
-    def get_rag_decomposition_individual(input: str) -> str:
-        """
-        Tool for RAG Decomposition that answers sub-questions individually,
-        then synthesizes a final answer.
-        """
-        query = input.strip()
-        results = perform_rag_decomposition_answer_individually(query, chat_llm, books_vector_store)
-        return json.dumps(results, default=str)
-    return get_rag_decomposition_individual
-
-
-####################################################################
 # RAG Step-Back Prompting (Books)
 ####################################################################
 
@@ -293,9 +243,6 @@ def index():
 def stream():
     similarity_search_tool = create_similarity_search_tool()
     retrieval_qa_tool = create_retrieval_qa_tool()
-    rag_decomp_tool = create_rag_decomposition_tool()
-    rag_decomp_recursive_tool = create_rag_decomposition_recursive_tool()
-    rag_decomp_individual_tool = create_rag_decomposition_individual_tool()
     rag_step_back_tool = create_rag_step_back_prompting_tool()
     self_query_tool = create_self_query_tool()
     rag_fusion_tool = create_rag_fusion_tool()
@@ -305,9 +252,6 @@ def stream():
         tools=[
             similarity_search_tool,
             retrieval_qa_tool,
-            rag_decomp_tool,
-            rag_decomp_recursive_tool,
-            rag_decomp_individual_tool,
             rag_step_back_tool,
             self_query_tool,
             rag_fusion_tool,

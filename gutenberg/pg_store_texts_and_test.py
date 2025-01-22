@@ -3,11 +3,8 @@ import argparse
 from dotenv import load_dotenv
 
 # Additional imports for the two new variants
-from operator import itemgetter
 from langchain_core.output_parsers import StrOutputParser
-from langchain import hub
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain_core.prompts import ChatPromptTemplate, FewShotChatMessagePromptTemplate
 
 # Project Gutenberg
 from gutenbergpy.gutenbergcache import GutenbergCache
@@ -115,6 +112,10 @@ def download_and_store_books(matching_books, vector_store):
 # RAG FUNCTIONS
 ###############################################################################
 
+###############################################################################
+# Retrieval QA
+###############################################################################
+
 def perform_retrieval_qa(query, llm, vector_store):
     """
     Perform a retrieval QA using LangChain. 
@@ -150,6 +151,9 @@ def perform_retrieval_qa(query, llm, vector_store):
         ]
     }
 
+###############################################################################
+# Similiarity Search
+###############################################################################
 
 def perform_similarity_search(query, vector_store):
     """
@@ -175,254 +179,6 @@ def perform_similarity_search(query, vector_store):
     }
 
 
-def perform_rag_decomposition(query, llm, vector_store):
-    """
-    (Original) Decompose a user query into multiple sub-queries, perform retrieval QA for each,
-    and return a unified data structure.
-    """
-    print("Performing standard RAG decomposition...")
-    # 1) Decompose the query
-    template = """You are a helpful assistant that generates multiple sub-questions related to an input question.
-The goal is to break down the input into a set of sub-problems / sub-questions that can be answered in isolation.
-Generate multiple search queries related to: {question}
-Output (3 queries):"""
-    
-    prompt_decomposition = ChatPromptTemplate.from_template(template)
-    generate_queries_decomposition = (
-        prompt_decomposition 
-        | llm
-        | StrOutputParser()
-        | (lambda x: x.split("\n"))
-    )
-    
-    sub_queries = generate_queries_decomposition.invoke({"question": query})
-
-    # 2) For each sub-query, call your retrieval QA
-    rag_results_list = []
-    for sub_query in sub_queries:
-        clean_sub_query = sub_query.strip("1234567890. )-")
-        retrieval_result = perform_retrieval_qa(clean_sub_query, llm, vector_store)
-        
-        if retrieval_result["results"]:
-            item = retrieval_result["results"][0]
-            rag_results_list.append(item)
-        else:
-            rag_results_list.append({
-                "sub_query": clean_sub_query,
-                "answer": None,
-                "sources": None,
-                "source_documents": []
-            })
-
-    # 3) Build the unified structure
-    return {
-        "method": "rag_decomposition",
-        "query": query,
-        "results": rag_results_list
-    }
-
-###############################################################################
-# RAG Decomposition: Answering Recursively
-###############################################################################
-
-def perform_rag_decomposition_answer_recursively(query, llm, vector_store):
-    """
-    Answer Recursively
-    
-    This approach simulates building up a "Q&A memory" (q_a_pairs) as you iteratively
-    answer queries. For simplicity, we'll demonstrate only a single pass with the
-    final question.
-    
-    In a real-world scenario, you might iterate over multiple questions or keep
-    updating q_a_pairs with each new question to refine answers further.
-    """
-
-    print("[RAG Decomposition - Answering Recursively]")
-
-    # Prompt template that includes the question, background Q+A pairs, and retrieved context
-    template = """Here is the question you need to answer:
-
-    \n --- \n {question} \n --- \n
-
-    Here is any available background question + answer pairs:
-
-    \n --- \n {q_a_pairs} \n --- \n
-
-    Here is additional context relevant to the question: 
-
-    \n --- \n {context} \n --- \n
-
-    Use the above context and any background question + answer pairs to answer the question: {question}
-    """
-
-    decomposition_prompt = ChatPromptTemplate.from_template(template)
-
-    # Helper to format Q&A pairs
-    def format_qa_pair(q, ans):
-        return f"Question: {q}\nAnswer: {ans}".strip()
-
-    # "q_a_pairs" could be updated as you recursively handle more questions
-    q_a_pairs = ""
-
-    # Retrieve context from the vector store (e.g., similarity search)
-    docs = vector_store.similarity_search(query)
-    context = "\n".join([doc.page_content for doc in docs[:3]])
-
-    # Build the prompt input
-    prompt_input = {
-        "question": query,
-        "q_a_pairs": q_a_pairs,
-        "context": context
-    }
-
-    # Run the chain
-    answer = (decomposition_prompt | llm | StrOutputParser()).invoke(prompt_input)
-
-    # Update Q&A pairs (if you wanted to handle multiple queries recursively)
-    q_a_pair = format_qa_pair(query, answer)
-    q_a_pairs += "\n---\n" + q_a_pair
-
-    # Return data in a similar structure
-    return {
-        "method": "rag_decomposition_recursive",
-        "query": query,
-        "results": [
-            {
-                "sub_query": query,
-                "answer": answer,
-                "sources": None,  # or you can store doc metadata here
-                "source_documents": docs
-            }
-        ]
-    }
-
-###############################################################################
-# RAG Decomposition: Answer Individually
-###############################################################################
-
-def perform_rag_decomposition_answer_individually(query, llm, vector_store):
-    """
-    Answer Individually
-
-    1) Decompose the user's query into sub-questions.
-    2) Retrieve context and answer each sub-question individually.
-    3) Generate a final synthetic answer based on the set of Q+A pairs from all sub-questions.
-    4) Return sources for each sub-question, aggregated into the final result.
-    """
-
-    print("[RAG Decomposition - Answer Individually]")
-
-    # 1) Sub-question generator chain (similar to the default decomposition approach)
-    template_decomp = """You are a helpful assistant that generates multiple sub-questions 
-related to an input question. Generate multiple search queries related to: {question}
-Output (3 queries):"""
-    
-    prompt_decomposition = ChatPromptTemplate.from_template(template_decomp)
-    generate_queries_decomposition = (
-        prompt_decomposition
-        | llm
-        | StrOutputParser()
-        | (lambda x: x.split("\n"))
-    )
-
-    # 2) For each sub-question, retrieve docs and do RAG
-    prompt_rag = hub.pull("rlm/rag-prompt")
-
-    def retrieve_and_rag(main_question, rag_prompt, sub_question_generator_chain):
-        """
-        Returns a list of dictionaries, each containing:
-        - sub_question: The sub-question text
-        - answer: The LLM's answer
-        - docs: The list of retrieved docs
-        - sources: The 'source' field from each doc's metadata
-        """
-        sub_questions = sub_question_generator_chain.invoke({"question": main_question})
-        all_sub_results = []
-
-        for sub_q in sub_questions:
-            sub_q_clean = sub_q.strip("1234567890. )-")
-
-            # Retrieve relevant documents
-            docs = vector_store.similarity_search(sub_q_clean)
-
-            # LLM prompt for each sub-question
-            answer = (rag_prompt | llm | StrOutputParser()).invoke({
-                "context": docs, 
-                "question": sub_q_clean
-            })
-
-            # Extract sources from each doc’s metadata
-            sub_sources = []
-            for d in docs:
-                # Example metadata field "source"
-                if d.metadata and d.metadata.get("source"):
-                    sub_sources.append(d.metadata["source"])
-
-            # Build a single structure for each sub-question
-            all_sub_results.append({
-                "sub_question": sub_q_clean,
-                "answer": answer,
-                "docs": docs,
-                "sources": list(set(sub_sources)),  # deduplicate if needed
-            })
-
-        return all_sub_results
-
-    # Execute retrieval & RAG for each sub-question
-    rag_results = retrieve_and_rag(query, prompt_rag, generate_queries_decomposition)
-
-    # 3) Format Q+A pairs for final synthesis
-    def format_qa_pairs(results_list):
-        """
-        Given a list of sub-question results, build a multi-line string of Q+A pairs.
-        """
-        formatted_str = []
-        for i, item in enumerate(results_list, start=1):
-            q = item["sub_question"]
-            a = item["answer"]
-            formatted_str.append(f"Question {i}: {q}\nAnswer {i}: {a}\n")
-        return "\n".join(formatted_str).strip()
-
-    # Combine sub-answers into a single Q&A string
-    context_qa = format_qa_pairs(rag_results)
-
-    # 4) Final prompt to synthesize one overall answer
-    final_template = """Here is a set of Q+A pairs:
-
-{context}
-
-Use these to synthesize an answer to the question: {question}
-"""
-    prompt_final = ChatPromptTemplate.from_template(final_template)
-
-    final_answer = (prompt_final | llm | StrOutputParser()).invoke({
-        "context": context_qa,
-        "question": query
-    })
-
-    # Collect all sources & docs from sub-questions
-    all_sources = []
-    all_docs = []
-    for item in rag_results:
-        all_sources.extend(item["sources"])
-        all_docs.extend(item["docs"])
-
-    # Deduplicate sources if needed
-    all_sources = list(set(all_sources))
-
-    return {
-        "method": "rag_decomposition_individual",
-        "query": query,
-        "results": [
-            {
-                "sub_query": query,
-                "answer": final_answer,
-                "sources": all_sources, 
-                "source_documents": all_docs  # if you want them all at once
-            }
-        ]
-    }
-
 ###############################################################################
 # RAG Step-Back Prompting
 ###############################################################################
@@ -442,9 +198,6 @@ def perform_rag_step_back_prompting(query, llm, vector_store):
     # --------------------------------------------------------------------------
     # 1) Define few-shot examples and set up the step-back prompt
     # --------------------------------------------------------------------------
-    from langchain_core.prompts import ChatPromptTemplate, FewShotChatMessagePromptTemplate
-    from langchain_core.output_parsers import StrOutputParser
-    from langchain_core.runnables import RunnableLambda
 
     examples = [
         {
@@ -567,9 +320,6 @@ def main():
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
     parser.add_argument("-ss", "--perform_similarity_search", type=bool, default=False, help="Perform similarity search.")
     parser.add_argument("-rq", "--perform_retrieval_qa", type=bool, default=False, help="Perform retrieval QA.")
-    parser.add_argument("-rd", "--perform_rag_decomposition", type=bool, default=False, help="Perform standard RAG decomposition.")
-    parser.add_argument("-rdar", "--perform_rag_decomposition_answer_recursively", type=bool, default=False, help="Perform RAG decomposition answer recursively.")
-    parser.add_argument("-rdai", "--perform_rag_decomposition_answer_individually", type=bool, default=False, help="Perform RAG decomposition answer individually.")
     parser.add_argument("-rdsb", "--perform_rag_step_back_prompting", type=bool, default=True, help="Perform RAG with step-back prompting.")
 
 
@@ -643,12 +393,6 @@ def main():
         results = perform_similarity_search(query, vector_store)
     elif args.perform_retrieval_qa:
         results = perform_retrieval_qa(query, chat_llm, vector_store)
-    elif args.perform_rag_decomposition:
-        results = perform_rag_decomposition(query, chat_llm, vector_store)
-    elif args.perform_rag_decomposition_answer_recursively:
-        results = perform_rag_decomposition_answer_recursively(query, chat_llm, vector_store)
-    elif args.perform_rag_decomposition_answer_individually:
-        results = perform_rag_decomposition_answer_individually(query, chat_llm, vector_store)
     elif args.perform_rag_step_back_prompting:
         results = perform_rag_step_back_prompting(query, chat_llm, vector_store)
     else:
