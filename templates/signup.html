@@ -3,12 +3,22 @@
 
 <head>
   <title>Sign Up | ChefBoost</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
 </head>
 
 <body>
   <header class="site-header">
-    <h1>Sign Up</h1>
+    < class="header-content-wrapper">
+      <figure>
+        <a href="{{ url_for('index') }}">
+          <img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo">
+          <span class="visually-hidden">ChefBoost</span>
+        </a>
+      </figure>
+      <div class="user-info">
+      </div>
+      </div>
   </header>
   <main>
     <div class="login-form">
@@ -35,6 +45,7 @@
         </form>
         <p>Already have an account? <a href="{{ url_for('login') }}">Log In</a></p>
       </div>
+    </div>
     </div>
   </main>
 </body>

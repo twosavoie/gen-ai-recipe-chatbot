@@ -8,8 +8,15 @@ import time
 import logging
 import datetime
 
+# Supabase imports
+from supabase import create_client
+from supabase.client import ClientOptions
+
 # Load environment variables from a .env file
 load_dotenv()
+
+# Load environment variables from a .env file
+load_dotenv(override=True)
 
 # Set up logging in the app.log file
 log = logging.getLogger("assistant")
@@ -50,6 +57,7 @@ def load_user(user_id):
 
 # Routes
 @app.route("/", methods=["GET"])
+@login_required
 def index():
     return render_template("index.html")
 
@@ -90,7 +98,7 @@ def login():
 
         login_user(user)
         flash("Logged in successfully!", "success")
-        return redirect(url_for("my_account"))
+        return redirect(url_for("index"))
 
     return render_template("login.html")
 
