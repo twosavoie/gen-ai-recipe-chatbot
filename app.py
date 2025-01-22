@@ -35,8 +35,6 @@ from gutenberg.pg_store_texts_and_test import (
 
 from gutenberg.pg_store_recipes_and_test_v2 import (
     perform_self_query_retrieval,
-    perform_rag_fusion_retrieval,
-    perform_self_query_rag_fusion_retrieval
 )
 
 # Load environment variables from a .env file
@@ -191,45 +189,6 @@ def create_self_query_tool():
     return get_self_query
 
 
-####################################################################
-# RAG Fusion Retrieval (Recipes)
-####################################################################
-def create_rag_fusion_tool():
-    @tool
-    def get_rag_fusion(input: str) -> str:
-        """
-        Tool for multi-query + reciprocal rank fusion retrieval over the 'recipes' corpus.
-        Useful for broad coverage of ambiguous or multi-faceted recipe requests.
-        """
-        query = input.strip()
-        # Adjust 'num_queries' as needed
-        results = perform_rag_fusion_retrieval(query, chat_llm, recipes_vector_store, num_queries=4)
-        return json.dumps(results, default=str)
-    return get_rag_fusion
-
-
-####################################################################
-# Self-Query + RAG Fusion Combined (Recipes)
-####################################################################
-def create_self_query_rag_fusion_tool():
-    @tool
-    def get_self_query_rag_fusion(input: str) -> str:
-        """
-        Tool for combining multi-angle (RAG Fusion) retrieval with
-        metadata-based self-query filtering on the 'recipes' corpus.
-        """
-        query = input.strip()
-        results = perform_self_query_rag_fusion_retrieval(
-            query,
-            multi_query_llm=chat_llm,   # or a different LLM if desired
-            self_query_llm=chat_llm,
-            vector_store=recipes_vector_store,
-            structured_query_translator=SupabaseVectorTranslator(),
-            num_queries=4
-        )
-        return json.dumps(results, default=str)
-    return get_self_query_rag_fusion
-
 # Routes
 # Index route
 @app.route("/", methods=["GET"])
@@ -245,8 +204,6 @@ def stream():
     retrieval_qa_tool = create_retrieval_qa_tool()
     rag_step_back_tool = create_rag_step_back_prompting_tool()
     self_query_tool = create_self_query_tool()
-    rag_fusion_tool = create_rag_fusion_tool()
-    self_query_rag_fusion_tool = create_self_query_rag_fusion_tool()
     graph = create_react_agent(
         model=chat_llm,
         tools=[
@@ -254,8 +211,6 @@ def stream():
             retrieval_qa_tool,
             rag_step_back_tool,
             self_query_tool,
-            rag_fusion_tool,
-            self_query_rag_fusion_tool,
         ],
         checkpointer=memory,
         debug=True
