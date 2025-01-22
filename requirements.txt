@@ -14,3 +14,4 @@ langgraph
 lark
 nltk
 spacy
+gutenbergpy

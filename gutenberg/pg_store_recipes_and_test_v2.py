@@ -8,10 +8,20 @@ from dotenv import load_dotenv
 from gutenbergpy.gutenbergcache import GutenbergCache
 from gutenbergpy.textget import get_text_by_id
 
+# ====================== HYDE CHANGES: New Imports ====================== #
+from langchain.chains import HypotheticalDocumentEmbedder
+from langchain.prompts import PromptTemplate
+# ====================================================================== #
+
 # LangChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
+
+# ====================== HYDE CHANGES: Keep OpenAIEmbeddings ====================== #
+# Keep using OpenAIEmbeddings for the base embeddings
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+# ================================================================================ #
+
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain.chains.query_constructor.schema import AttributeInfo
 from langchain.retrievers.self_query.base import SelfQueryRetriever
@@ -26,6 +36,11 @@ from typing import List
 from langchain_core.output_parsers import BaseOutputParser
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
+from langchain.chains.llm import LLMChain
+
+# ============== RAG Fusion: Extra Imports ================
+from langchain.load import dumps, loads
+# =========================================================
 
 # Supabase
 from supabase import create_client, Client
@@ -38,7 +53,6 @@ from supabase.client import ClientOptions
 
 
 # Constants
-# Define a list of keywords to search for in Project Gutenberg
 COOKING_KEYWORDS = ["cooking", "recipes", "cookbook", "culinary"]
 
 COMMON_INGREDIENTS = {
@@ -49,19 +63,14 @@ COMMON_INGREDIENTS = {
     "herbs", "spices", "nuts", "almonds", "walnuts", "raisins", "yeast"
 }
 
-# Define lists of recipe types, cuisines, and special considerations
-
 RECIPE_TYPE = ["dessert", "soup", "salad", "main course", "appetizer", "beverage"]
-
 CUISINE = ["italian", "french", "german", "australian", "english",  "american", "thai", "japanese", "chinese", "mexican", "indian"]
-
 SPECIAL_CONSIDERATIONS = ["vegetarian", "vegan", "keto", "nut-free", "dairy-free", "gluten-free", "low-carb"]
 
-# Define the maximum number of tokens per chunk
 MAX_TOKENS_PER_CHUNK = 128000  # approximate chunk size limit
 
-# Define the headings that are commonly used in recipes
 HEADINGS = ["INGREDIENTS", "METHOD", "INSTRUCTIONS", "DIRECTIONS"]
+
 
 ###############################################################################
 # GUTENBERG SEARCH & METADATA
@@ -121,12 +130,10 @@ def construct_metadata(cache, gutenberg_book_id):
     """
     cursor = cache.native_query(query)
 
-    # Handle the cursor result correctly
     result = None
     for row in cursor:
         result = row
 
-    # Ensure result exists
     if not result:
         print(f"No metadata found for book ID {gutenberg_book_id}.")
         return {
@@ -157,10 +164,7 @@ def construct_metadata(cache, gutenberg_book_id):
 
 def remove_gutenberg_disclaimers(book_text: str) -> str:
     """
-    Removes Project Gutenberg headers/footers between
-    *** START OF THIS PROJECT GUTENBERG EBOOK *** and
-    *** END OF THIS PROJECT GUTENBERG EBOOK ***,
-    plus lines with 'gutenberg', 'license', or URLs.
+    Removes Project Gutenberg headers/footers and lines with 'gutenberg', 'license', or URLs.
     """
     start_marker = re.search(
         r"(\*\*\* START OF THIS PROJECT GUTENBERG EBOOK.*?\*\*\*)",
@@ -195,10 +199,7 @@ def remove_gutenberg_disclaimers(book_text: str) -> str:
 def fix_inlined_titles(text: str) -> str:
     """
     Insert a newline after uppercase words that might be a recipe title
-    followed immediately by a word like 'Makes', 'Serves', or a digit, etc.
-
-    E.g., "BLUE CHEESE CHICKEN SPREADMakes about 40..."
-    =>     "BLUE CHEESE CHICKEN SPREAD\nMakes about 40..."
+    followed immediately by 'Makes', 'Serves', or a digit, etc.
     """
     pattern = re.compile(
         r'([A-Z]{2,}(?:\s+[A-Z]{2,}){0,6})(?=(Makes|Serves|\d|[^a-z\s]))'
@@ -234,7 +235,6 @@ def is_recipe_title(line: str) -> bool:
     if len(words) == 0 or len(words) > 15:
         return False
 
-    # e.g. "No. 211." or "Recipe No. 12"
     if re.match(r"^No\.\s*\d+", line, re.IGNORECASE):
         return True
     if re.match(r"^Recipe\s+No\.\s*\d+", line, re.IGNORECASE):
@@ -258,15 +258,12 @@ def is_recipe_title(line: str) -> bool:
 
 def is_recipe_heading(paragraph: str) -> bool:
     """
-    Check if a paragraph is a known heading (like "INGREDIENTS:", "METHOD:", etc.).
-    We'll do a simple check: if the line is short, uppercase or ends in a colon,
-    or belongs to HEADINGS.
+    Check if a paragraph is a known heading (like "INGREDIENTS:", etc.).
     """
     p = paragraph.strip()
     # uppercase or ends with a colon
     if p.isupper() or p.endswith(":"):
         return True
-    # check HEADINGS
     for h in HEADINGS:
         if h in p.upper():
             return True
@@ -280,17 +277,12 @@ def is_recipe_heading(paragraph: str) -> bool:
 def extract_all_recipes_with_context(book_text: str, oversample=1):
     """
     Extract recipes by:
-      - Splitting text into paragraphs
-      - Searching for lines that look like recipe titles
-      - When a new title is found, finalize the previous recipe and start a new one
-      - "Oversample" = also include N paragraphs before a recognized title
-      - If multiple titles occur in the same paragraph, handle them separately
-      - If we see headings like "INGREDIENTS" or "METHOD" in the same paragraph,
-        we keep them with the current recipe.
-
-    Return a list of text chunks, each chunk representing a single recipe + context.
+      1. Splitting text into paragraphs
+      2. Searching for lines that look like recipe titles
+      3. When a new title is found, finalize the previous recipe
+      4. Oversample = also include `N` paragraphs before
+      5. If multiple titles occur in same paragraph, handle them separately
     """
-
     raw_paragraphs = book_text.split("\n\n")
     paragraphs = [p.strip() for p in raw_paragraphs if p.strip()]
 
@@ -319,15 +311,11 @@ def extract_all_recipes_with_context(book_text: str, oversample=1):
         p = expanded_paragraphs[i].strip()
 
         if is_recipe_title(p):
-            # finalize old recipe
             if in_recipe and current_recipe:
                 recipes.append("\n\n".join(current_recipe))
                 current_recipe = []
-
-            # start new recipe
             in_recipe = True
 
-            # oversample: also include up to `oversample` paragraphs before this one
             start_idx = max(0, i - oversample)
             for back_idx in range(start_idx, i):
                 if expanded_paragraphs[back_idx] not in current_recipe:
@@ -343,7 +331,6 @@ def extract_all_recipes_with_context(book_text: str, oversample=1):
 
         i += 1
 
-    # finalize last recipe
     if in_recipe and current_recipe:
         recipes.append("\n\n".join(current_recipe))
 
@@ -361,11 +348,7 @@ def extract_recipe_info(chunk_text: str, llm: ChatOpenAI) -> dict:
       - title (str)
       - ingredients (list of str)
       - instructions (str)
-      - recipe_type (str or list[str])
-      - cuisine (str)
-      - special_considerations (str or list[str])
-
-    If not a recipe, returns {"recipe_found": false}.
+      - recipe_type, cuisine, special_considerations
     """
     system_prompt = (
         "You are a helpful assistant that identifies and extracts recipes from text. "
@@ -374,32 +357,28 @@ def extract_recipe_info(chunk_text: str, llm: ChatOpenAI) -> dict:
         "If a recipe is found, return a JSON object with:\n"
         "{\n"
         '  "recipe_found": true,\n'
-        '  "title": "STRING with recipe title",\n'
-        '  "ingredients": ["LIST", "OF", "INGREDIENTS", "in", "lowercase", "without", "quantities"],\n'
+        '  "title": "STRING",\n'
+        '  "ingredients": ["LIST OF INGREDIENTS" (lowercase, no quantities)],\n'
         '  "instructions": "STRING with instructions",\n'
-        '  f"recipe_type": "STRING or LIST OF STRINGS consisting stricly of one or more of the following: {RECIPE_TYPE}",\n'
-        '  f"cuisine": "STRING like the following: {CUISINE}",\n'
-        '  f"special_considerations": "STRING or LIST OF STRINGS consisting of one or more of the following special dietary considerations: {SPECIAL_CONSIDERATIONS}""\n'
-        "}\n"
-        "Do not add fields beyond these. The entire reply must be valid JSON only."
+        f'  "recipe_type": "STRING or LIST from {RECIPE_TYPE}",\n'
+        f'  "cuisine": "STRING from {CUISINE}",\n'
+        f'  "special_considerations": "STRING or LIST from {SPECIAL_CONSIDERATIONS}"\n'
+        "}\n\n"
+        "Output must be valid JSON."
     )
 
     user_prompt = (
         f"Text chunk:\n{chunk_text}\n\n"
-        "Does this text contain a recipe? If yes, extract all relevant data above. "
+        "Does this text contain a recipe? If yes, extract the JSON data above. "
         "If no recipe is present, return {\"recipe_found\": false}."
     )
 
     try:
-                # Create message objects
         messages = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_prompt),
         ]
-
-        # Invoke the LLM with the messages
         response: AIMessage = llm.invoke(messages)
-
         reply = response.content.strip()
         recipe_data = json.loads(reply)
         print(f"\nChunk: {chunk_text}")
@@ -417,7 +396,7 @@ def extract_recipe_info(chunk_text: str, llm: ChatOpenAI) -> dict:
 
 def approximate_token_count(text: str) -> int:
     """
-    Rough token estimate (words * 1.3).
+    Rough token estimate.
     """
     words = text.split()
     return int(len(words) * 1.3)
@@ -434,10 +413,9 @@ def download_and_store_books(matching_books, cache, llm, vector_store, oversampl
       2. Remove disclaimers
       3. Fix inline titles
       4. Extract recipes with oversampling
-      5. If large, subdivide the chunk
-      6. Single LLM call that returns all metadata: 
-         (title, instructions, ingredients, recipe_type, cuisine, special_considerations)
-      7. Store the recognized recipe in Supabase
+      5. Possibly subdivide big chunks
+      6. Single LLM call that returns all metadata
+      7. Store recognized recipe in Supabase
     """
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=MAX_TOKENS_PER_CHUNK, chunk_overlap=200)
     documents = []
@@ -446,75 +424,59 @@ def download_and_store_books(matching_books, cache, llm, vector_store, oversampl
         print(f"Processing: {title} (ID: {gutenberg_book_id})")
 
         try:
-            # Build metadata
             metadata = construct_metadata(cache, gutenberg_book_id)
 
-            # Get raw text
             raw_text = get_text_by_id(gutenberg_book_id)
             if not raw_text:
                 print(f"Unable to retrieve content for ID {gutenberg_book_id}.")
                 continue
 
-            # Convert to string
             content = raw_text.decode("utf-8", errors="ignore")
 
-            # Remove Gutenberg disclaimers
             content = remove_gutenberg_disclaimers(content)
-
-            # Fix inline all-caps titles
             content = fix_inlined_titles(content)
 
-            # Extract 'recipes' with oversampling
             recipe_texts = extract_all_recipes_with_context(content, oversample=oversample)
 
-            # For each extracted recipe:
             for i, recipe_text in enumerate(recipe_texts):
                 token_count = approximate_token_count(recipe_text)
 
-                # If big, subdivide
                 if token_count <= MAX_TOKENS_PER_CHUNK:
                     sub_chunks = [recipe_text]
                 else:
                     sub_chunks = text_splitter.split_text(recipe_text)
 
                 for j, sub_chunk in enumerate(sub_chunks):
-                    # 5) Single LLM call for full metadata
                     recipe_info = extract_recipe_info(sub_chunk, llm)
                     if recipe_info.get("recipe_found"):
-                        # Merge chunk-level info with general Gutenberg metadata
                         chunk_metadata = metadata.copy()
                         chunk_metadata["recipe_index"] = i
                         chunk_metadata["sub_chunk_index"] = j
                         chunk_metadata["token_count"] = approximate_token_count(sub_chunk)
 
-                        # === Attach the LLM-extracted fields ===
-                        # If the LLM fails to parse a specific field, default to empty
                         chunk_metadata["recipe_title"] = recipe_info.get("title", "")
                         chunk_metadata["ingredients"] = recipe_info.get("ingredients", [])
-                        # chunk_metadata["instructions"] = recipe_info.get("instructions", "")
                         chunk_metadata["recipe_type"] = recipe_info.get("recipe_type", "")
                         chunk_metadata["cuisine"] = recipe_info.get("cuisine", "")
                         chunk_metadata["special_considerations"] = recipe_info.get("special_considerations", "")
 
-                        formatted_recipe = f"Title: {recipe_info.get('title')}\n\n" \
-                                             f"Ingredients: {recipe_info.get('ingredients')}\n\n" \
-                                                f"Instructions: {recipe_info.get('instructions')}\n\n"
+                        formatted_recipe = (
+                            f"Title: {recipe_info.get('title')}\n\n"
+                            f"Ingredients: {recipe_info.get('ingredients')}\n\n"
+                            f"Instructions: {recipe_info.get('instructions')}\n\n"
+                        )
                         
-                        # === Create a Document with the final text + metadata ===
                         document = Document(page_content=formatted_recipe, metadata=chunk_metadata)
                         documents.append(document)
 
         except Exception as e:
             print(f"Error processing {title} (ID: {gutenberg_book_id}): {e}")
 
-    # Batch upload recognized recipes to Supabase
-    batch_size = 50 # Adjust as necessary
+    batch_size = 50
     for i in range(0, len(documents), batch_size):
         batch = documents[i:i+batch_size]
         try:
-            vector_store.add_documents(
-                batch
-            )
+            vector_store.add_documents(batch)
             print(f"Successfully uploaded batch {i//batch_size + 1} "
                   f"of {len(documents)//batch_size + 1}.")
         except Exception as e:
@@ -522,20 +484,44 @@ def download_and_store_books(matching_books, cache, llm, vector_store, oversampl
 
 
 ###############################################################################
+# BASELINE SIMILARITY SEARCH (SINGLE-QUERY)
+###############################################################################
+
+def perform_similarity_search(query, vector_store):
+    """
+    Perform HyDE retrieval (or standard) with a single query.
+    """
+    recipes = vector_store.similarity_search(query)
+
+    print(recipes)
+    
+    chain = RunnableParallel(
+        # nutrition=generate_nutrition_info_chain(llm),
+        # shopping_list=generate_shopping_list_chain(llm),
+        # factoids=generate_factoids_chain(llm),
+        recipe=RunnablePassthrough()
+    )
+
+    outputs = []
+
+    for i, recipe in enumerate(recipes, start=1):
+        output = chain.invoke({"text": recipe.page_content, "metadata": recipe.metadata})
+        processed_output = {
+            "nutrition": None, #output["nutrition"],
+            "shopping_list": None, #output["shopping_list"],
+            "factoids": None, #output["factoids"],
+            "recipe": output["recipe"]
+        }
+        outputs.append(processed_output)
+
+    return outputs
+
+
+###############################################################################
 # SELF-QUERY RETRIEVER
 ###############################################################################
 
-
-def perform_self_query_retrieval(query, llm, vector_store, structured_query_translator):
-    """
-    Creates a SelfQueryRetriever for the following metadata fields:
-      - recipe_title
-      - recipe_type
-      - cuisine
-      - special_considerations
-      - ingredients
-    """
-
+def build_self_query_retriever(llm, vector_store, structured_query_translator):
     metadata_field_info = [
         AttributeInfo(
             name="recipe_title",
@@ -549,27 +535,22 @@ def perform_self_query_retrieval(query, llm, vector_store, structured_query_tran
         ),
         AttributeInfo(
             name="cuisine",
-            description=f"The cuisine type (e.g., {CUISINE}). Use the like operator for partial matches.",
+            description=f"The cuisine type (e.g., {CUISINE}). Use like operator for partial matches.",
             type="string",
         ),
         AttributeInfo(
             name="special_considerations",
-            description=f"Dietary restrictions (e.g., {SPECIAL_CONSIDERATIONS}). Use the like operator for partial matches.",
+            description=f"Dietary restrictions (e.g., {SPECIAL_CONSIDERATIONS}). Use like operator for partial matches.",
             type="list[string]",
         ),
         AttributeInfo(
             name="ingredients",
-            description=f"Key ingredients in the recipe (e.g., {COMMON_INGREDIENTS}). Use the like operator for partial matches.",
+            description=f"Key ingredients (e.g., {COMMON_INGREDIENTS}). Use like operator for partial matches.",
             type="list[string]",
         ),
     ]
 
     doc_content_desc = "Text content describing a cooking recipe"
-    doc_contents = (
-        "The text content of a cooking recipe, including its ingredients, "
-        "instructions, and relevant metadata."
-    )
-    
     examples = [
         (
             "Show me all American dessert recipes but not vegetarian.",
@@ -582,85 +563,7 @@ def perform_self_query_retrieval(query, llm, vector_store, structured_query_tran
                             )"""
             }
         ),
-        (
-            "Show me all vegetarian or vegan recipes that include both rice and broccoli.",
-            {
-                "query": "rice broccoli",
-                "filter": """and(
-                                or(
-                                    like("special_considerations", '%vegetarian%'), 
-                                    like("special_considerations", '%vegan%')
-                                ), 
-                                like("ingredients", '%rice%'), 
-                                like("ingredients", '%broccoli%')
-                            )"""
-            }
-        ),
-        (
-            "Show me all Italian recipes that are not desserts and include chocolate.",
-            {
-                "query": "Italian chocolate",
-                "filter": """and(
-                                eq("cuisine", 'italian'), 
-                                ne("recipe_type", 'dessert'), 
-                                like("ingredients", '%chocolate%')
-                            )"""
-            }
-        ),
-        (
-            "Show me all recipes that are either American or Italian and are low-carb desserts.",
-            {
-                "query": "low-carb dessert",
-                "filter": """and(
-                                or(
-                                    eq("cuisine", 'american'), 
-                                    eq("cuisine", 'italian')
-                                ), 
-                                eq("recipe_type", 'dessert'), 
-                                like("special_considerations", '%low-carb%')
-                            )"""
-            }
-        ),
-        (
-            "Show me all recipes that are not desserts, contain chicken, and are gluten-free or dairy-free.",
-            {
-                "query": "chicken",
-                "filter": """and(
-                                ne("recipe_type", 'dessert'), 
-                                like("ingredients", '%chicken%'), 
-                                or(
-                                    like("special_considerations", '%gluten-free%'), 
-                                    like("special_considerations", '%dairy-free%')
-                                )
-                            )"""
-            }
-        ),
-        (
-            "Show me all vegan recipes that are either Italian or Mexican and include chocolate and vanilla.",
-            {
-                "query": "vegan chocolate vanilla",
-                "filter": """and(
-                                like("special_considerations", '%vegan%'), 
-                                or(
-                                    eq("cuisine", 'italian'), 
-                                    eq("cuisine", 'mexican')
-                                ), 
-                                like("ingredients", '%chocolate%'), 
-                                like("ingredients", '%vanilla%')
-                            )"""
-            }
-        ),
-        (
-            "Show me all recipes with 'cake' in the title that are American but not low-carb.",
-            {
-                "query": "cake",
-                "filter": """and(
-                                like("recipe_title", '%cake%'), 
-                                eq("cuisine", 'american'), 
-                                not(like("special_considerations", '%low-carb%'))
-                            )"""
-            }
-        ),
+        # add more examples...
     ]
 
     prompt = get_query_constructor_prompt(
@@ -669,66 +572,26 @@ def perform_self_query_retrieval(query, llm, vector_store, structured_query_tran
         examples=examples
     )
 
-    # print(prompt.format(query="Show me chocolate cake recipes."))
-
     output_parser = StructuredQueryOutputParser.from_components()
     query_constructor = prompt | llm | output_parser
 
     sq_retriever = SelfQueryRetriever(
-    query_constructor=query_constructor,
-    vectorstore=vector_store,
-    structured_query_translator=structured_query_translator,
+        query_constructor=query_constructor,
+        vectorstore=vector_store,
+        structured_query_translator=structured_query_translator,
     )
 
-    # Output parser will split the LLM result into a list of queries
-    class LineListOutputParser(BaseOutputParser[List[str]]):
-        """Output parser for a list of lines."""
+    return sq_retriever
 
-        def parse(self, text: str) -> List[str]:
-            lines = text.strip().split("\n")
-            return list(filter(None, lines))  # Remove empty lines
+def perform_self_query_retrieval(query, llm, vector_store, structured_query_translator):
+    """
+    Creates a SelfQueryRetriever for metadata fields about recipes.
+    """
+    retriever = build_self_query_retriever(llm, vector_store, structured_query_translator)
 
+    recipes = retriever.invoke(query)
 
-    output_parser = LineListOutputParser()
-
-    query_prompt = PromptTemplate(
-        input_variables=["question"],
-        template="""You are an AI language model assistant. Your task is to generate five 
-        different versions of the given user question to retrieve relevant documents from a vector 
-        database. By generating multiple perspectives on the user question, your goal is to help
-        the user overcome some of the limitations of the distance-based similarity search. 
-        Provide these alternative questions separated by newlines.
-        Original question: {question}""",
-    )
-
-    # Chain
-    mq_chain = query_prompt | llm | output_parser
-
-    mq_retriever = MultiQueryRetriever(
-        retriever=sq_retriever, llm_chain=mq_chain, parser_key="lines"
-    )
-
-    recipes = mq_retriever.invoke(query)
-
-    chain = RunnableParallel(nutrition=generate_nutrition_info_chain(llm), shopping_list=generate_shopping_list_chain(llm), factoids=generate_factoids_chain(llm), recipe=RunnablePassthrough())
-
-    outputs = []
-
-    for i, recipe in enumerate(recipes, start=1):
-        output = chain.invoke({"text": recipe.page_content, "metadata": recipe.metadata })
-
-        # Extract raw text output from the LLM
-        processed_output = {
-            "nutrition": output["nutrition"],
-            "shopping_list": output["shopping_list"],
-            "factoids": output["factoids"],
-            "recipe": output["recipe"]  # Recipe is already raw text
-        }
-        outputs.append(processed_output)
-        
-
-    return outputs
-
+    return build_outputs(recipes, llm)
 
 
 ###############################################################################
@@ -737,34 +600,12 @@ def perform_self_query_retrieval(query, llm, vector_store, structured_query_tran
 
 def generate_nutrition_info_chain(llm):
     """
-    Calculate estimated calories and macronutrients for a list of ingredients.
+    Calculate estimated calories and macronutrients.
     """
     return ChatPromptTemplate.from_template (
         """You are a nutrition assistant. Given a list of ingredients, estimate the total
-        calories, protein, carbs, and fat. Return only a single valid JSON object in the following format.
+        calories, protein, carbs, and fat. Return only a single valid JSON object in this format.
         
-        {{
-            "description": "nutrition info",
-            "ingredients": [
-                {{"name": "Honey", "amount": "1/2 lb", "calories": 690, "protein": 0.3, "carbs": 177, "fat": 0}},
-                {{"name": "Almonds", "amount": "1/2 lb", "calories": 650, "protein": 24, "carbs": 23, "fat": 56}},
-                {{"name": "Filberts", "amount": "1/2 lb", "calories": 700, "protein": 15, "carbs": 16, "fat": 66}},
-                {{"name": "Candied Lemon Peel", "amount": "1/4 cup", "calories": 120, "protein": 0, "carbs": 30, "fat": 0}},
-                {{"name": "Pepper", "amount": "1 tsp", "calories": 6, "protein": 0.2, "carbs": 1.4, "fat": 0.1}},
-                {{"name": "Cinnamon", "amount": "1 tsp", "calories": 6, "protein": 0.1, "carbs": 2, "fat": 0.03}},
-                {{"name": "Chocolate", "amount": "1/4 lb", "calories": 600, "protein": 7, "carbs": 50, "fat": 45}},
-                {{"name": "Corn Flour", "amount": "1 tbsp", "calories": 30, "protein": 1, "carbs": 7, "fat": 0.1}},
-                {{"name": "Large Wafers", "amount": "4 wafers", "calories": 80, "protein": 1, "carbs": 16, "fat": 2}}
-            ],
-            "total": {{
-                "calories": 2882,
-                "protein": 49.6,
-                "carbs": 302.4,
-                "fat": 169.33
-            }}
-        }}
-
-        \n
         {text}"""
     ) | llm | StrOutputParser()
 
@@ -773,24 +614,9 @@ def generate_shopping_list_chain(llm):
     Generate a shopping list from the given ingredients.
     """
     return ChatPromptTemplate.from_template (
-        """You are a shopping assistant. Analyze the recipe text and create a shopping list of items needed for this recipe.
-          Return only a single valid JSON object in the following format.\n
-            {{
-                "description": "shopping list",
-                "ingredients": [
-                    "Honey",
-                    "Almonds",
-                    "Filberts",
-                    "Candied lemon peel",
-                    "Pepper",
-                    "Cinnamon",
-                    "Chocolate",
-                    "Corn flour",
-                    "Large wafers"
-                ]
-            }}
-        \n
-        {text}"""
+        """You are a shopping assistant. Create a shopping list of items for this recipe.
+           Return only a single valid JSON object in the following format.\n
+           {text}"""
     ) | llm | StrOutputParser()
 
 def generate_factoids_chain(llm):
@@ -798,63 +624,216 @@ def generate_factoids_chain(llm):
     Generate interesting factoids about the recipe's ingredients and methods.
     """
     return ChatPromptTemplate.from_template (
-        """You are a culinary historian. Analyze the recipe text and provide interesting
-        factoids about its ingredients and methods. Return only a single valid JSON object in the following format.\n
-        
-        {{
-            "description": "Factoids for ingredients and methods",
-            "data": [
-                {{"type": "ingredient", "name": "Honey", "fact": "Honey has been used as a sweetener for thousands of years and was highly valued in ancient cultures, often associated with immortality and used in religious rituals."}},
-                {{"type": "ingredient", "name": "Almonds", "fact": "Almonds are one of the oldest cultivated nuts, with origins tracing back to the Middle East and South Asia. They are rich in healthy fats, fiber, and protein."}},
-                {{"type": "ingredient", "name": "Filberts", "fact": "Filberts, also known as hazelnuts, have been cultivated since the Bronze Age and are often associated with fertility and protection in various cultures."}},
-                {{"type": "ingredient", "name": "Candied lemon peel", "fact": "Candied citrus peels have been used in European confections since the Middle Ages, serving as a way to preserve fruit and add flavor to sweets."}},
-                {{"type": "ingredient", "name": "Pepper", "fact": "Black pepper was once so valuable that it was used as currency in trade, and it has been a staple spice in cooking for over 4,000 years."}},
-                {{"type": "ingredient", "name": "Cinnamon", "fact": "Cinnamon is one of the oldest known spices, with a history of use dating back to ancient Egypt, where it was highly prized and used in embalming."}},
-                {{"type": "ingredient", "name": "Chocolate", "fact": "Chocolate originated from the cacao bean, which was used by ancient Mesoamerican cultures in ceremonial drinks. It was introduced to Europe in the 16th century."}},
-                {{"type": "ingredient", "name": "Corn flour", "fact": "Corn flour is a staple in many cuisines, particularly in the Americas, and is used to thicken sauces and batters due to its fine texture."}},
-                {{"type": "ingredient", "name": "Large wafers", "fact": "Wafers have a long history in baking, often used as a base for confections and desserts. They can be traced back to ancient Greece and Rome."}},
-                {{"type": "method", "name": "Boiling honey in a copper vessel", "fact": "Copper vessels are traditionally used in candy making because they conduct heat evenly, allowing for precise temperature control, which is crucial for achieving the right texture."}},
-                {{"type": "method", "name": "Baking in a slow oven", "fact": "Baking at low temperatures allows for gradual cooking, which helps to develop flavors and maintain moisture in baked goods, a technique often used in traditional recipes."}}
-            ]
-        }}
-        \n
+        """You are a culinary historian. Provide interesting factoids about its ingredients 
+        and methods. Return only a single valid JSON object in the following format.\n
         {text}"""
     ) | llm | StrOutputParser()
+
+
+###############################################################################
+# RAG FUSION HELPER FUNCTIONS
+###############################################################################
+
+def reciprocal_rank_fusion(results_list: list[list], k=60):
+    """
+    Utility to re-rank results from multiple queries via Reciprocal Rank Fusion.
+    Expects a list of lists, each sub-list containing Document objects in 
+    descending similarity order.
+    """
+    fused_scores = {}
+    for docs in results_list:
+        # docs is a single retrieval result (list of Documents)
+        for rank, doc in enumerate(docs):
+            # Create a unique string representation of doc
+            doc_str = dumps(doc)
+            if doc_str not in fused_scores:
+                fused_scores[doc_str] = 0.0
+            # Weighted score = reciprocal of rank
+            fused_scores[doc_str] += 1.0 / (rank + k)
+
+    # Sort by final fused scores descending
+    reranked_results = [
+        (loads(doc_str), score)
+        for doc_str, score in sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
+    ]
+
+    # Return just the Documents in order
+    return [doc_score_tuple[0] for doc_score_tuple in reranked_results]
+
+
+###############################################################################
+# RAG FUSION RETRIEVAL (MULTI-QUERY + FUSION)
+###############################################################################
+
+def perform_rag_fusion_retrieval(query: str, llm: ChatOpenAI, vector_store: SupabaseVectorStore, num_queries: int = 4):
+    """
+    1. Generate multiple related queries for the original user query.
+    2. Retrieve results for each generated query.
+    3. Fuse results via reciprocal rank fusion.
+    4. Return in a consistent format (similar to other retrieval functions).
+    """
+
+    # Step 1: Prompt to generate multiple queries
+    # You can store this as a local prompt or fetch from a hub
+    system_prompt = (
+        "You are a helpful assistant that, given a user query, "
+        "generates multiple search queries to capture different angles or facets. "
+        "Return exactly {num_queries} queries, separated by newlines."
+    )
+
+    multi_query_prompt = ChatPromptTemplate.from_template(
+        template=(
+            "{system_prompt}\n\nUser query: {original_query}\n\n"
+            "OUTPUT (one per line, total {num_queries} lines):"
+        ),
+        partial_variables={"system_prompt": system_prompt},
+    )
+
+    # A short chain: prompt -> LLM -> parse into list[str]
+    chain_generate_queries = (
+        multi_query_prompt 
+        | llm 
+        | StrOutputParser() 
+        | (lambda x: x.strip().split("\n"))
+    )
+
+    # Step 2: Retrieve for each generated query
+    # We'll store each retrieval result in a list
+    def retrieve_docs_for_queries(generated_queries: list[str]):
+        all_results = []
+        for q in generated_queries:
+            # You can tune top_k or similarity threshold here
+            docs = vector_store.similarity_search(q)
+            all_results.append(docs)
+        return all_results
+
+    # Step 3: Fuse results
+    # We'll produce a final re-ranked list of Documents
+    def fuse_results(all_retrievals: list[list]):
+        fused_docs = reciprocal_rank_fusion(all_retrievals)
+        return fused_docs
+
+    # Chain them together:
+    generated_queries = chain_generate_queries.invoke({"original_query": query, "num_queries": num_queries})
+    all_retrievals = retrieve_docs_for_queries(generated_queries)
+    fused_documents = fuse_results(all_retrievals)
+
+    # Step 4: For consistency, we transform the final fused documents
+    # using the same chain approach as other retrievals.
+    return build_outputs(fused_documents, llm)
+
+###############################################################################
+# RAG FUSION + SELF QUERY COMBINED
+###############################################################################
+def perform_self_query_rag_fusion_retrieval(
+    query: str,
+    multi_query_llm: ChatOpenAI,
+    self_query_llm: ChatOpenAI,
+    vector_store: SupabaseVectorStore,
+    structured_query_translator: SupabaseVectorTranslator,
+    num_queries: int = 4
+):
+    """
+    1. Generate multiple related queries from the original user query (RAG Fusion step).
+    2. For each generated query, use the SelfQueryRetriever pipeline (metadata fields, etc.)
+       to build a structured query and retrieve documents.
+    3. Fuse results via reciprocal rank fusion.
+    4. Return final results in the same format as your other retrieval functions.
+    """
+    # --- Step 1: Multi-query generation (like standard RAG Fusion) ---
+    # You can store/fetch a better prompt from your local resources or a prompt hub.
+    system_prompt = (
+        "You are a helpful assistant that, given a user query, "
+        "generates multiple search queries to capture different angles or facets. "
+        f"Return exactly {num_queries} queries, separated by newlines."
+    )
+
+    multi_query_prompt = ChatPromptTemplate.from_template(
+        template=(
+            "{system_prompt}\n\nUser query: {original_query}\n\n"
+            f"OUTPUT (one per line, total {num_queries} lines):"
+        ),
+        partial_variables={"system_prompt": system_prompt},
+    )
+
+    generate_multiple_queries = (
+        multi_query_prompt
+        | multi_query_llm
+        | StrOutputParser()  # parse string
+        | (lambda x: x.strip().split("\n"))  # split lines into list[str]
+    )
+
+    generated_queries = generate_multiple_queries.invoke({"original_query": query})
+
+    # --- Step 2: For each generated query, run the SelfQueryRetriever ---
+    
+    retriever = build_self_query_retriever(self_query_llm, vector_store, structured_query_translator)
+
+    all_results = []
+    for q in generated_queries:
+        docs = retriever.invoke(q)
+        all_results.append(docs)
+
+    # --- Step 3: Fuse results via reciprocal rank fusion ---
+    fused_docs = reciprocal_rank_fusion(all_results)
+
+    # --- Step 4: Format results
+    return build_outputs(fused_docs, self_query_llm)
+
+
+def build_outputs(results: List[Document], llm) -> List[dict]:
+
+    chain = RunnableParallel(
+        nutrition=generate_nutrition_info_chain(llm),
+        shopping_list=generate_shopping_list_chain(llm),
+        factoids=generate_factoids_chain(llm),
+        recipe=RunnablePassthrough()
+    )
+
+    outputs = []
+    for i, recipe in enumerate(results, start=1):
+        output = chain.invoke({"text": recipe.page_content, "metadata": recipe.metadata})
+        processed_output = {
+            "nutrition": output["nutrition"],
+            "shopping_list": output["shopping_list"],
+            "factoids": output["factoids"],
+            "recipe": output["recipe"]
+        }
+        outputs.append(processed_output)
+    return outputs
 
 ###############################################################################
 # MAIN
 ###############################################################################
 
-
 def main():
-
     parser = argparse.ArgumentParser(
         description="Loading and testing a vector store."
     )
     
     parser.add_argument("-lb", "--load_books", type=bool, default=False, help="Search and load books.")
-    
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
-    
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
-
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
+    parser.add_argument("-hyde", "--use_hyde", type=bool, default=True, help="Use HyDE embeddings.")
+    parser.add_argument("-sq", "--use_self_query", type=bool, default=True, help="Use self-query retrieval.")
+    parser.add_argument("-rf", "--use_rag_fusion", type=bool, default=False, help="Use RAG Fusion retrieval.")
+    parser.add_argument("-sqrf", "--use_self_query_rag_fusion", type=bool, default=False, help="Combine self-query and RAG fusion.")
+
+
     
-    # Parse the arguments
     args = parser.parse_args()
     
     top_n = args.top_n
     start_date = args.start_date
     end_date = args.end_date
 
-    # Load environment variables
-    load_dotenv(override=True) # Load environment variables from .env
+    load_dotenv(override=True)
 
     SUPABASE_URL = os.getenv("SUPABASE_HTTPS_URL")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-    # Initialize Supabase
     supabase_client: Client = create_client(
         SUPABASE_URL,
         SUPABASE_KEY,
@@ -865,8 +844,12 @@ def main():
         )
     )
 
-    # Initialize embeddings & LLMs
-    embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
+     # We'll keep the same LLM for classification calls
+    hyde_llm = ChatOpenAI(
+        model="gpt-4o",
+        temperature=1,
+        openai_api_key=OPENAI_API_KEY
+    )
 
     chat_llm = ChatOpenAI(
         model="gpt-4o",
@@ -874,20 +857,41 @@ def main():
         openai_api_key=OPENAI_API_KEY
     )
 
+    # We'll keep the same LLM for classification calls
     classifier_llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0,
         openai_api_key=OPENAI_API_KEY
     )
 
-    vector_store = SupabaseVectorStore(
+    # Decide on embeddings
+    if args.use_hyde:
+        base_embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
+        hyde_prompt_template = """\
+        You are a culinary assistant who specializes in recipes. 
+        Given a user query related to cooking, produce a hypothetical paragraph that
+        might answer their question or provide relevant cooking details.
+
+        Query: {question}
+        Hypothetical Answer (focus on recipes, ingredients, cooking techniques, etc.):\
+        """
+        hyde_prompt = PromptTemplate(input_variables=["question"], template=hyde_prompt_template)
+
+        embeddings = HypotheticalDocumentEmbedder.from_llm(
+            llm=hyde_llm,
+            base_embeddings=base_embeddings,
+            custom_prompt=hyde_prompt
+        )
+    else:
+        embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
+
+    recipes_vector_store = SupabaseVectorStore(
         client=supabase_client,
-        embedding=embeddings,
+        embedding=embeddings,  
         table_name="recipes",
         query_name="match_recipes"
     )
 
-    # Initialize Gutenberg cache
     cache = GutenbergCache.get_cache()
 
     if args.load_books:
@@ -900,16 +904,42 @@ def main():
             end_date=end_date
         )
         print(f"Found {len(matching_books)} books.")
-
-        # Download, oversample paragraphs by 1 on each side for context
         print("Downloading and storing books...")
         oversample_distance = 1
-        download_and_store_books(matching_books, cache, classifier_llm, vector_store, oversample=oversample_distance)
+        download_and_store_books(
+            matching_books,
+            cache,
+            classifier_llm,  # here you call the parse LLM
+            recipes_vector_store,
+            oversample=oversample_distance
+        )
 
-    # Perform query
-    query = "Show me dessert recipes that are either Italian or English."
-    print(f"\nSelf-query retrieval with: {query}")
-    results = perform_self_query_retrieval(query, chat_llm, vector_store, SupabaseVectorTranslator())
+    results = None
+
+    query = "Find dessert recipes that combine french and italian cooking."
+    
+    # ================== Decide which retrieval to use ================== #
+    if args.use_rag_fusion:
+        print(f"\n[Using RAG Fusion] for query: {query}\n")
+        results = perform_rag_fusion_retrieval(query, chat_llm, recipes_vector_store, num_queries=4)
+
+    elif args.use_self_query:
+        print(f"\nSelf-query retrieval with: {query}")
+        results = perform_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
+    elif args.use_self_query_rag_fusion:
+        print(f"\nCombining self-query and RAG Fusion for: {query}")
+        results = perform_self_query_rag_fusion_retrieval(
+            query, 
+            chat_llm, 
+            classifier_llm, 
+            recipes_vector_store, 
+            SupabaseVectorTranslator(), 
+            num_queries=4
+        )
+    else:
+        print(f"\nSimilarity search with: {query}")
+        results = perform_similarity_search(query, recipes_vector_store)
+    # =================================================================== #
 
     for i, res in enumerate(results, start=1):
         print(f"\n[Result {i}] Recipe: {res['recipe']['text']}")
