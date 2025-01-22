@@ -24,18 +24,19 @@ client = OpenAI(api_key=api_key)
 
 # log.info(api_key)
 
+# Flask app setup
 app = Flask(__name__)
-
-# Function to add to the log in the app.log file
-def log_run(run_status):
-    if run_status in ["cancelled", "failed", "expired"]:
-        log.error(str(datetime.datetime.now()) + " Run " + run_status + "\n")
 
 # Render the HTML template - we're going to see a UI!!!
 @app.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
+  
+# Function to add to the log in the app.log file
+def log_run(run_status):
+    if run_status in ["cancelled", "failed", "expired"]:
+        log.error(str(datetime.datetime.now()) + " Run " + run_status + "\n")
 
 # Run the Flask server
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)

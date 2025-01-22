@@ -3,6 +3,7 @@
 
 <head>
   <title>Sign Up | ChefBoost</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,13 +18,12 @@
   <header class="site-header">
     <div class="header-content-wrapper">
       <figure>
-        <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo.png' ) }}" alt=""
-            class="logo"></a><span class="visually-hidden">Chef
-          Boost</span>
+        <a href="{{ url_for('index') }}">
+          <img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo">
+          <span class="visually-hidden">ChefBoost</span>
+        </a>
       </figure>
       <div class="user-info">
-        <img src="{{ url_for('static', filename='avatar.png' ) }}" alt="" class="user-image">
-        <a href="{{ url_for('login') }}" class="link-underline">Log in</a>
       </div>
     </div>
   </header>
@@ -34,16 +34,25 @@
         <p>Your go-to kitchen sidekick for delicious recipes, pro cooking tips, and real-time chef support.</p>
         <p class="subtext">Let's make something amazing together!</p>
         <form method="POST" class="auth-form-content-wrapper">
+          <!-- Username Field -->
           <div class="form-group">
-            <label for="username">Email</label>
-            <input type="text" id="username" name="username" placeholder="emma@example.com" required>
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="Choose a username" required>
           </div>
+          <!-- Email Field -->
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" placeholder="you@example.com" required>
+          </div>
+          <!-- Password Field -->
           <div class="form-group">
             <label for="password">Password</label>
-            <input type="password" id="password" name="password" placeholder="Password" required>
+            <input type="password" id="password" name="password" placeholder="Enter a strong password" required>
           </div>
-          <button type="submit" class="btn">Get Started</button>
+          <!-- Submit Button -->
+          <button type="submit" class="btn">Sign Up</button>
         </form>
+        <p>Already have an account? <a href="{{ url_for('login') }}">Log In</a></p>
       </div>
     </div>
     </div>

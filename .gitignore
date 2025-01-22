@@ -4,5 +4,6 @@ venv
 Thumbs.db
 cache/
 texts/
-__pycache__
 *.bz2
+__pycache__/
+.env
