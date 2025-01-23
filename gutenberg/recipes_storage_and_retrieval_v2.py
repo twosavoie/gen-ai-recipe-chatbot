@@ -26,11 +26,6 @@ from langchain_core.output_parsers import StrOutputParser
 from typing import List
 from langchain_core.prompts import PromptTemplate
 
-
-# ============== RAG Fusion: Extra Imports ================
-from langchain.load import dumps, loads
-# =========================================================
-
 # Supabase
 from supabase import create_client, Client
 from supabase.client import ClientOptions
@@ -481,8 +476,6 @@ def perform_similarity_search(query, llm, vector_store):
     Perform HyDE retrieval (or standard) with a single query.
     """
     recipes = vector_store.similarity_search(query)
-
-    print(recipes)
     
     chain = RunnableParallel(
         nutrition=generate_nutrition_info_chain(llm),
@@ -491,19 +484,7 @@ def perform_similarity_search(query, llm, vector_store):
         recipe=RunnablePassthrough()
     )
 
-    outputs = []
-
-    for i, recipe in enumerate(recipes, start=1):
-        output = chain.invoke({"text": recipe.page_content, "metadata": recipe.metadata})
-        processed_output = {
-            "nutrition": output["nutrition"],
-            "shopping_list": output["shopping_list"],
-            "factoids": output["factoids"],
-            "recipe": output["recipe"]
-        }
-        outputs.append(processed_output)
-
-    return outputs
+    return build_outputs(recipes, llm)
 
 
 ###############################################################################
@@ -619,157 +600,6 @@ def generate_factoids_chain(llm):
     ) | llm | StrOutputParser()
 
 
-###############################################################################
-# RAG FUSION HELPER FUNCTIONS
-###############################################################################
-
-def reciprocal_rank_fusion(results_list: list[list], k=60):
-    """
-    Utility to re-rank results from multiple queries via Reciprocal Rank Fusion.
-    Expects a list of lists, each sub-list containing Document objects in 
-    descending similarity order.
-    """
-    fused_scores = {}
-    for docs in results_list:
-        # docs is a single retrieval result (list of Documents)
-        for rank, doc in enumerate(docs):
-            # Create a unique string representation of doc
-            doc_str = dumps(doc)
-            if doc_str not in fused_scores:
-                fused_scores[doc_str] = 0.0
-            # Weighted score = reciprocal of rank
-            fused_scores[doc_str] += 1.0 / (rank + k)
-
-    # Sort by final fused scores descending
-    reranked_results = [
-        (loads(doc_str), score)
-        for doc_str, score in sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
-    ]
-
-    # Return just the Documents in order
-    return [doc_score_tuple[0] for doc_score_tuple in reranked_results]
-
-
-###############################################################################
-# RAG FUSION RETRIEVAL (MULTI-QUERY + FUSION)
-###############################################################################
-
-def perform_rag_fusion_retrieval(query: str, llm: ChatOpenAI, vector_store: SupabaseVectorStore, num_queries: int = 4):
-    """
-    1. Generate multiple related queries for the original user query.
-    2. Retrieve results for each generated query.
-    3. Fuse results via reciprocal rank fusion.
-    4. Return in a consistent format (similar to other retrieval functions).
-    """
-
-    # Step 1: Prompt to generate multiple queries
-    # You can store this as a local prompt or fetch from a hub
-    system_prompt = (
-        "You are a helpful assistant that, given a user query, "
-        "generates multiple search queries to capture different angles or facets. "
-        "Return exactly {num_queries} queries, separated by newlines."
-    )
-
-    multi_query_prompt = ChatPromptTemplate.from_template(
-        template=(
-            "{system_prompt}\n\nUser query: {original_query}\n\n"
-            "OUTPUT (one per line, total {num_queries} lines):"
-        ),
-        partial_variables={"system_prompt": system_prompt},
-    )
-
-    # A short chain: prompt -> LLM -> parse into list[str]
-    chain_generate_queries = (
-        multi_query_prompt 
-        | llm 
-        | StrOutputParser() 
-        | (lambda x: x.strip().split("\n"))
-    )
-
-    # Step 2: Retrieve for each generated query
-    # We'll store each retrieval result in a list
-    def retrieve_docs_for_queries(generated_queries: list[str]):
-        all_results = []
-        for q in generated_queries:
-            # You can tune top_k or similarity threshold here
-            docs = vector_store.similarity_search(q)
-            all_results.append(docs)
-        return all_results
-
-    # Step 3: Fuse results
-    # We'll produce a final re-ranked list of Documents
-    def fuse_results(all_retrievals: list[list]):
-        fused_docs = reciprocal_rank_fusion(all_retrievals)
-        return fused_docs
-
-    # Chain them together:
-    generated_queries = chain_generate_queries.invoke({"original_query": query, "num_queries": num_queries})
-    all_retrievals = retrieve_docs_for_queries(generated_queries)
-    fused_documents = fuse_results(all_retrievals)
-
-    # Step 4: For consistency, we transform the final fused documents
-    # using the same chain approach as other retrievals.
-    return build_outputs(fused_documents, llm)
-
-###############################################################################
-# RAG FUSION + SELF QUERY COMBINED
-###############################################################################
-def perform_self_query_rag_fusion_retrieval(
-    query: str,
-    multi_query_llm: ChatOpenAI,
-    self_query_llm: ChatOpenAI,
-    vector_store: SupabaseVectorStore,
-    structured_query_translator: SupabaseVectorTranslator,
-    num_queries: int = 4
-):
-    """
-    1. Generate multiple related queries from the original user query (RAG Fusion step).
-    2. For each generated query, use the SelfQueryRetriever pipeline (metadata fields, etc.)
-       to build a structured query and retrieve documents.
-    3. Fuse results via reciprocal rank fusion.
-    4. Return final results in the same format as your other retrieval functions.
-    """
-    # --- Step 1: Multi-query generation (like standard RAG Fusion) ---
-    # You can store/fetch a better prompt from your local resources or a prompt hub.
-    system_prompt = (
-        "You are a helpful assistant that, given a user query, "
-        "generates multiple search queries to capture different angles or facets. "
-        f"Return exactly {num_queries} queries, separated by newlines."
-    )
-
-    multi_query_prompt = ChatPromptTemplate.from_template(
-        template=(
-            "{system_prompt}\n\nUser query: {original_query}\n\n"
-            f"OUTPUT (one per line, total {num_queries} lines):"
-        ),
-        partial_variables={"system_prompt": system_prompt},
-    )
-
-    generate_multiple_queries = (
-        multi_query_prompt
-        | multi_query_llm
-        | StrOutputParser()  # parse string
-        | (lambda x: x.strip().split("\n"))  # split lines into list[str]
-    )
-
-    generated_queries = generate_multiple_queries.invoke({"original_query": query})
-
-    # --- Step 2: For each generated query, run the SelfQueryRetriever ---
-    
-    retriever = build_self_query_retriever(self_query_llm, vector_store, structured_query_translator)
-
-    all_results = []
-    for q in generated_queries:
-        docs = retriever.invoke(q)
-        all_results.append(docs)
-
-    # --- Step 3: Fuse results via reciprocal rank fusion ---
-    fused_docs = reciprocal_rank_fusion(all_results)
-
-    # --- Step 4: Format results
-    return build_outputs(fused_docs, self_query_llm)
-
-
 def build_outputs(results: List[Document], llm) -> List[dict]:
 
     chain = RunnableParallel(
@@ -804,13 +634,11 @@ def main():
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
-    parser.add_argument("-hyde", "--use_hyde", type=bool, default=True, help="Use HyDE embeddings.")
-    parser.add_argument("-sq", "--use_self_query", type=bool, default=True, help="Use self-query retrieval.")
-    parser.add_argument("-rf", "--use_rag_fusion", type=bool, default=False, help="Use RAG Fusion retrieval.")
-    parser.add_argument("-sqrf", "--use_self_query_rag_fusion", type=bool, default=False, help="Combine self-query and RAG fusion.")
+    parser.add_argument("-q", "--query", type=str, default="Find dessert recipes that combine french and italian cooking.", help="Query to search for.")
+    parser.add_argument("-ss", "--use_simlarity_search", type=bool, default=True, help="Use similarity search.")
+    parser.add_argument("-sq", "--use_self_query", type=bool, default=False, help="Use self-query retrieval.")
+    parser.add_argument("-hy", "--use_hyde", type=bool, default=False, help="Use hyde.")    
 
-
-    
     args = parser.parse_args()
     
     top_n = args.top_n
@@ -905,27 +733,13 @@ def main():
 
     results = None
 
-    query = "Find dessert recipes that combine french and italian cooking."
+    query = args.query
     
     # ================== Decide which retrieval to use ================== #
-    if args.use_rag_fusion:
-        print(f"\n[Using RAG Fusion] for query: {query}\n")
-        results = perform_rag_fusion_retrieval(query, chat_llm, recipes_vector_store, num_queries=4)
-
-    elif args.use_self_query:
+    if args.use_self_query:
         print(f"\nSelf-query retrieval with: {query}")
         results = perform_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
-    elif args.use_self_query_rag_fusion:
-        print(f"\nCombining self-query and RAG Fusion for: {query}")
-        results = perform_self_query_rag_fusion_retrieval(
-            query, 
-            chat_llm, 
-            classifier_llm, 
-            recipes_vector_store, 
-            SupabaseVectorTranslator(), 
-            num_queries=4
-        )
-    else:
+    elif args.use_simlarity_search:
         print(f"\nSimilarity search with: {query}")
         results = perform_similarity_search(query, chat_llm, recipes_vector_store)
     # =================================================================== #

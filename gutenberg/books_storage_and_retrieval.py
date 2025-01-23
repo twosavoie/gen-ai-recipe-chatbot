@@ -318,6 +318,7 @@ def main():
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
+    parser.add_argument("-q", "--query", type=str, default="", help="Query to search for.")
     parser.add_argument("-ss", "--perform_similarity_search", type=bool, default=False, help="Perform similarity search.")
     parser.add_argument("-rq", "--perform_retrieval_qa", type=bool, default=False, help="Perform retrieval QA.")
     parser.add_argument("-rdsb", "--perform_rag_step_back_prompting", type=bool, default=True, help="Perform RAG with step-back prompting.")
@@ -386,7 +387,7 @@ def main():
         download_and_store_books(matching_books, vector_store)
 
     # Perform a sample query
-    query = "How to make a sponge cake with fruit flavor?"
+    query = args.query
     print(f"Running query: {query}")
 
     if args.perform_similarity_search:
