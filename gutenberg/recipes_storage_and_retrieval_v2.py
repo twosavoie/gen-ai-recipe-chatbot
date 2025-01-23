@@ -26,10 +26,6 @@ from typing import List
 from langchain_core.prompts import PromptTemplate
 from langchain.retrievers.multi_query import MultiQueryRetriever
 
-# ============== RAG Fusion: Extra Imports ================
-from langchain.load import dumps, loads
-# =========================================================
-
 # Supabase
 from supabase import create_client, Client
 from supabase.client import ClientOptions
