@@ -20,12 +20,21 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import SupabaseVectorStore
 
 from langchain.agents import tool
+from langchain_community.query_constructors.supabase import SupabaseVectorTranslator
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
-from gutenberg.pg_store_texts_and_test import perform_retrieval_qa
-from gutenberg.pg_store_recipes_and_test import perform_self_query_retrieval
 
+# RAG imports
+from gutenberg.books_storage_and_retrieval import (
+    perform_similarity_search as perform_books_similarity_search,
+    perform_retrieval_qa as perform_books_retrieval_qa,
+)
+
+from gutenberg.recipes_storage_and_retrieval_v2 import (
+    perform_similarity_search as perform_recipes_similarity_search,
+    perform_self_query_retrieval as perform_recipes_self_query_retrieval,
+)
 
 # Load environment variables from a .env file
 load_dotenv(override=True)
@@ -40,7 +49,7 @@ api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("Missing OPENAI_API_KEY in environment variables.")
 
-chat_llm = ChatOpenAI(model="gpt-4o", api_key=api_key)
+chat_llm = ChatOpenAI(model="gpt-4o-mini", api_key=api_key)
 
 # Flask app setup
 app = Flask(__name__)
@@ -97,40 +106,73 @@ recipes_vector_store = SupabaseVectorStore(
 # Define MemorySaver instance for langgraph agent
 memory = MemorySaver()
 
-# Define agent tools
-def create_recipe_tool():
+
+# Create the agent tools for the RAG functions
+
+####################################################################
+# Similarity Search (Books)
+####################################################################
+def create_books_similarity_search_tool():
     @tool
-    def get_recipes(input: str) -> str:
+    def get_books_similarity_search(input: str) -> str:
         """
-        Tool for finding recipes.
+        Tool to perform a simple similarity search on the 'books' vector store.
+        Returns the top matching chunks as JSON.
         """
-        query = f"Recipes about {input.strip()}"
-        results = perform_self_query_retrieval(query, chat_llm, recipes_vector_store)
-        if results:
-            # Return JSON as a string
-            return results
-        else:
-            return json.dumps([])
+        query = input.strip()
+        results = perform_books_similarity_search(query, chat_llm, books_vector_store)
+        # 'perform_similarity_search' might return Documents or a custom structure.
+        # Convert it to JSON or a string
+        return json.dumps(results, default=str)
+    return get_books_similarity_search
 
-    return get_recipes
 
-def create_general_info_tool():
+####################################################################
+# Retrieval QA (Books)
+####################################################################
+def create_books_retrieval_qa_tool():
     @tool
-    def get_general_info(input: str) -> str:
+    def get_books_retrieval_qa(input: str) -> str:
         """
-        Tool for answering general cooking questions.
+        Tool for short Q&A over the 'books' corpus using retrieval QA.
         """
-        query = f"Find information about: {input.strip()}"
-        result = perform_retrieval_qa(query, chat_llm, books_vector_store)
-        answer = result["answer"]
-        sources = result["sources"]
-        if result:
-            # Return JSON as a string
-            return json.dumps({"answer": answer, "sources": sources})
-        else:
-            return json.dumps({"answer": "No information found.", "sources": []})
+        query = input.strip()
+        chain_result = perform_books_retrieval_qa(query, chat_llm, books_vector_store)
+        # Typically returns a dict with 'answer', 'sources', 'source_documents', etc.
+        return json.dumps(chain_result, default=str)
+    return get_books_retrieval_qa
 
-    return get_general_info
+####################################################################
+# Similarity Search (Recipes)
+####################################################################
+def create_recipes_similarity_search_tool():
+    @tool
+    def get_recipes_similarity_search(input: str) -> str:
+        """
+        Tool to perform a simple similarity search on the 'recipes' vector store.
+        Returns the top matching chunks as JSON.
+        """
+        query = input.strip()
+        results = perform_recipes_similarity_search (query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
+        return json.dumps(results, default=str)
+    return get_recipes_similarity_search
+
+
+####################################################################
+# Self-Query Retrieval (Recipes)
+####################################################################
+def create_recipes_self_query_tool():
+    @tool
+    def get_recipes_self_query(input: str) -> str:
+        """
+        Tool for searching recipes with metadata-based self-query retrieval.
+        (E.g., filter by recipe_type, cuisine, special_considerations, etc.)
+        """
+        query = input.strip()
+        results = perform_recipes_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
+        return json.dumps(results, default=str)
+    return get_recipes_self_query
+
 
 # Routes
 # Index route
@@ -143,11 +185,20 @@ def index():
 @app.route("/stream", methods=["GET"])
 @login_required
 def stream():
-    general_info_tool = create_general_info_tool()
-    recipe_tool = create_recipe_tool()
+
+    recipes_similarity_search_tool = create_recipes_similarity_search_tool()
+    recipes_self_query_tool = create_recipes_self_query_tool()
+    books_retrieval_qa_tool = create_books_retrieval_qa_tool()
+    books_similarity_search_tool = create_books_similarity_search_tool()
+
     graph = create_react_agent(
         model=chat_llm,
-        tools=[general_info_tool, recipe_tool],
+        tools=[   
+            recipes_similarity_search_tool,
+            recipes_self_query_tool,
+            books_retrieval_qa_tool,
+            books_similarity_search_tool,
+        ],
         checkpointer=memory,
         debug=True
     )

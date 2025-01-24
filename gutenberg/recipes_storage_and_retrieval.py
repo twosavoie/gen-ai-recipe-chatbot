@@ -300,12 +300,12 @@ def main():
     )
     
     parser.add_argument("-lb", "--load_books", type=bool, default=False, help="Search and load books.")
-    
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
-    
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
-
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
+    parser.add_argument("-q", "--query", type=str, default="Find Poached Eggs Recipes.", help="Query to perform.")
+    parser.add_argument("-ss", "--use_simlarity_search", type=bool, default=True, help="Use similarity search.")
+    
     
     # Parse the arguments
     args = parser.parse_args()
@@ -381,9 +381,12 @@ def main():
 
 
     # Perform query
-    query = "Find Poached Eggs Recipies."
-    print(f"\nSelf-query retrieval with: {query}")
-    results = perform_self_query_retrieval(query, chat_llm, vector_store)
+    query = args.query
+    results = []
+    
+    if args.use_simlarity_search:
+        print(f"\nSimilarity search with: {query}")
+        results = perform_self_query_retrieval(query, chat_llm, vector_store)
 
     for i, res in enumerate(results, start=1):
         print(f"\n[Result {i}] Recipe: {res['recipe']}")
