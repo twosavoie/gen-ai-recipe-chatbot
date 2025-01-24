@@ -4,8 +4,7 @@ from dotenv import load_dotenv
 
 # Additional imports for the two new variants
 from langchain_core.output_parsers import StrOutputParser
-from langchain import hub
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, FewShotChatMessagePromptTemplate
 
 # Project Gutenberg
 from gutenbergpy.gutenbergcache import GutenbergCache
@@ -17,6 +16,7 @@ from langchain.schema import Document
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain.chains import RetrievalQAWithSourcesChain
+from langchain import hub
 
 # Supabase
 from supabase import create_client, Client
@@ -114,7 +114,7 @@ def download_and_store_books(matching_books, vector_store):
 ###############################################################################
 
 ###############################################################################
-# Perform Retrieval QA
+# Retrieval QA
 ###############################################################################
 
 def perform_retrieval_qa(query, llm, vector_store):
@@ -153,7 +153,7 @@ def perform_retrieval_qa(query, llm, vector_store):
     }
 
 ###############################################################################
-# Similarity Search
+# Similiarity Search
 ###############################################################################
 
 def perform_similarity_search(query, vector_store):
@@ -177,6 +177,132 @@ def perform_similarity_search(query, vector_store):
         "method": "similarity_search",
         "query": query,
         "results": results_list
+    }
+
+
+###############################################################################
+# RAG Step-Back Prompting
+###############################################################################
+
+def perform_rag_step_back_prompting(query, llm, vector_store):
+    """
+    Step-Back Prompting
+
+    1) Generate a more generic/paraphrased "step-back" question.
+    2) Retrieve context for the original question and the step-back question.
+    3) Combine both contexts to produce a final comprehensive answer.
+    4) Return an output data structure consistent with other RAG functions.
+    """
+
+    print("[RAG Step-Back Prompting]")
+
+    # --------------------------------------------------------------------------
+    # 1) Define few-shot examples and set up the step-back prompt
+    # --------------------------------------------------------------------------
+
+    examples = [
+        {
+            "input": "How do I bake a chocolate cake from scratch?",
+            "output": "What is the general process of baking a cake from scratch?",
+        },
+        {
+            "input": "What are the health benefits of using olive oil instead of butter in cooking?",
+            "output": "What is the general difference between cooking with olive oil and cooking with butter?",
+        },
+    ]
+
+    # Create an example-based prompt to demonstrate how to transform questions
+    example_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("human", "{input}"), 
+            ("ai", "{output}"),
+        ]
+    )
+    few_shot_prompt = FewShotChatMessagePromptTemplate(
+        example_prompt=example_prompt,
+        examples=examples,
+    )
+
+    # Wrap these few-shot examples in a final system+user prompt
+    step_back_system_message = (
+        "You are an expert at cooking knowledge. Your task is to step back "
+        "and paraphrase a question to a more generic step-back question, "
+        "which is easier to answer. Here are a few examples:"
+    )
+    step_back_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", step_back_system_message),
+            few_shot_prompt,  # few-shot examples
+            ("user", "{question}"),
+        ]
+    )
+
+    # Construct a small "chain" that calls the LLM and parses out the string
+    generate_queries_step_back = step_back_prompt | llm | StrOutputParser()
+
+    # --------------------------------------------------------------------------
+    # 2) Retrieve context using the original question
+    # --------------------------------------------------------------------------
+    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+    normal_docs = retriever.invoke(query)
+
+    # --------------------------------------------------------------------------
+    # 3) Generate the step-back question & retrieve context for it
+    # --------------------------------------------------------------------------
+    step_back_question = generate_queries_step_back.invoke({"question": query})
+    step_back_docs = retriever.invoke(step_back_question)
+
+    # --------------------------------------------------------------------------
+    # 4) Build a final synthesis prompt that references both contexts
+    # --------------------------------------------------------------------------
+    response_prompt_template = """You are an expert of cooking knowledge. 
+    I am going to ask you a question. Your response should be comprehensive and 
+    should not contradict the following context if it is relevant. If it is not 
+    relevant, ignore it.
+
+    # Normal Context:
+    {normal_context}
+
+    # Step-Back Context:
+    {step_back_context}
+
+    # Original Question: {question}
+    # Answer:
+    """
+    response_prompt = ChatPromptTemplate.from_template(response_prompt_template)
+
+    # Flatten the retrieved docs into strings
+    normal_context_str = "\n\n".join([doc.page_content for doc in normal_docs])
+    step_back_context_str = "\n\n".join([doc.page_content for doc in step_back_docs])
+
+    # Prepare the final LLM input
+    final_input = {
+        "normal_context": normal_context_str,
+        "step_back_context": step_back_context_str,
+        "question": query,
+    }
+
+    # Synthesize the final answer
+    final_answer = (response_prompt | llm | StrOutputParser()).invoke(final_input)
+
+    # --------------------------------------------------------------------------
+    # 5) Return a structure consistent with other RAG methods
+    # --------------------------------------------------------------------------
+    # Optionally, combine docs or keep them separate
+    combined_docs = normal_docs + step_back_docs
+
+    return {
+        "method": "rag_step_back_prompting",
+        "query": query,
+        "results": [
+            {
+                # You can store the step-back question here, or the original question
+                "sub_query": step_back_question,
+                "answer": final_answer,
+                "sources": None,  # or extract doc metadata
+                "source_documents": combined_docs
+            }
+        ]
     }
 
 ###############################################################################
@@ -431,134 +557,6 @@ Use these to synthesize an answer to the question: {question}
         ]
     }
 
-###############################################################################
-# RAG Step-Back Prompting
-###############################################################################
-
-def perform_rag_step_back_prompting(query, llm, vector_store):
-    """
-    Step-Back Prompting
-
-    1) Generate a more generic/paraphrased "step-back" question.
-    2) Retrieve context for the original question and the step-back question.
-    3) Combine both contexts to produce a final comprehensive answer.
-    4) Return an output data structure consistent with other RAG functions.
-    """
-
-    print("[RAG Step-Back Prompting]")
-
-    # --------------------------------------------------------------------------
-    # 1) Define few-shot examples and set up the step-back prompt
-    # --------------------------------------------------------------------------
-    from langchain_core.prompts import ChatPromptTemplate, FewShotChatMessagePromptTemplate
-    from langchain_core.output_parsers import StrOutputParser
-    from langchain_core.runnables import RunnableLambda
-
-    examples = [
-        {
-            "input": "How do I bake a chocolate cake from scratch?",
-            "output": "What is the general process of baking a cake from scratch?",
-        },
-        {
-            "input": "What are the health benefits of using olive oil instead of butter in cooking?",
-            "output": "What is the general difference between cooking with olive oil and cooking with butter?",
-        },
-    ]
-
-    # Create an example-based prompt to demonstrate how to transform questions
-    example_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("human", "{input}"), 
-            ("ai", "{output}"),
-        ]
-    )
-    few_shot_prompt = FewShotChatMessagePromptTemplate(
-        example_prompt=example_prompt,
-        examples=examples,
-    )
-
-    # Wrap these few-shot examples in a final system+user prompt
-    step_back_system_message = (
-        "You are an expert at cooking knowledge. Your task is to step back "
-        "and paraphrase a question to a more generic step-back question, "
-        "which is easier to answer. Here are a few examples:"
-    )
-    step_back_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", step_back_system_message),
-            few_shot_prompt,  # few-shot examples
-            ("user", "{question}"),
-        ]
-    )
-
-    # Construct a small "chain" that calls the LLM and parses out the string
-    generate_queries_step_back = step_back_prompt | llm | StrOutputParser()
-
-    # --------------------------------------------------------------------------
-    # 2) Retrieve context using the original question
-    # --------------------------------------------------------------------------
-    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
-    normal_docs = retriever.invoke(query)
-
-    # --------------------------------------------------------------------------
-    # 3) Generate the step-back question & retrieve context for it
-    # --------------------------------------------------------------------------
-    step_back_question = generate_queries_step_back.invoke({"question": query})
-    step_back_docs = retriever.invoke(step_back_question)
-
-    # --------------------------------------------------------------------------
-    # 4) Build a final synthesis prompt that references both contexts
-    # --------------------------------------------------------------------------
-    response_prompt_template = """You are an expert of cooking knowledge. 
-    I am going to ask you a question. Your response should be comprehensive and 
-    should not contradict the following context if it is relevant. If it is not 
-    relevant, ignore it.
-
-    # Normal Context:
-    {normal_context}
-
-    # Step-Back Context:
-    {step_back_context}
-
-    # Original Question: {question}
-    # Answer:
-    """
-    response_prompt = ChatPromptTemplate.from_template(response_prompt_template)
-
-    # Flatten the retrieved docs into strings
-    normal_context_str = "\n\n".join([doc.page_content for doc in normal_docs])
-    step_back_context_str = "\n\n".join([doc.page_content for doc in step_back_docs])
-
-    # Prepare the final LLM input
-    final_input = {
-        "normal_context": normal_context_str,
-        "step_back_context": step_back_context_str,
-        "question": query,
-    }
-
-    # Synthesize the final answer
-    final_answer = (response_prompt | llm | StrOutputParser()).invoke(final_input)
-
-    # --------------------------------------------------------------------------
-    # 5) Return a structure consistent with other RAG methods
-    # --------------------------------------------------------------------------
-    # Optionally, combine docs or keep them separate
-    combined_docs = normal_docs + step_back_docs
-
-    return {
-        "method": "rag_step_back_prompting",
-        "query": query,
-        "results": [
-            {
-                # You can store the step-back question here, or the original question
-                "sub_query": step_back_question,
-                "answer": final_answer,
-                "sources": None,  # or extract doc metadata
-                "source_documents": combined_docs
-            }
-        ]
-    }
-
 
 ###############################################################################
 # MAIN
@@ -573,12 +571,13 @@ def main():
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
+    parser.add_argument("-q", "--query", type=str, default="", help="Query to search for.")
     parser.add_argument("-ss", "--perform_similarity_search", type=bool, default=False, help="Perform similarity search.")
     parser.add_argument("-rq", "--perform_retrieval_qa", type=bool, default=False, help="Perform retrieval QA.")
-    parser.add_argument("-rd", "--perform_rag_decomposition", type=bool, default=False, help="Perform standard RAG decomposition.")
-    parser.add_argument("-rdar", "--perform_rag_decomposition_answer_recursively", type=bool, default=False, help="Perform RAG decomposition answer recursively.")
-    parser.add_argument("-rdai", "--perform_rag_decomposition_answer_individually", type=bool, default=False, help="Perform RAG decomposition answer individually.")
     parser.add_argument("-rdsb", "--perform_rag_step_back_prompting", type=bool, default=True, help="Perform RAG with step-back prompting.")
+    parser.add_argument("-rd", "--perform_rag_decomposition", type=bool, default=False, help="Perform RAG with decomposition.")
+    parser.add_argument("-rdar", "--perform_rag_decomposition_answer_recursively", type=bool, default=False, help="Perform RAG with decomposition and answer recursively.")
+    parser.add_argument("-rdai", "--perform_rag_decomposition_answer_individually", type=bool, default=False, help="Perform RAG with decomposition and answer individually.")
 
 
     # Parse the arguments
@@ -644,21 +643,21 @@ def main():
         download_and_store_books(matching_books, vector_store)
 
     # Perform a sample query
-    query = "How to make a sponge cake with fruit flavor?"
+    query = args.query
     print(f"Running query: {query}")
 
     if args.perform_similarity_search:
         results = perform_similarity_search(query, vector_store)
     elif args.perform_retrieval_qa:
         results = perform_retrieval_qa(query, chat_llm, vector_store)
+    elif args.perform_rag_step_back_prompting:
+        results = perform_rag_step_back_prompting(query, chat_llm, vector_store)
     elif args.perform_rag_decomposition:
         results = perform_rag_decomposition(query, chat_llm, vector_store)
     elif args.perform_rag_decomposition_answer_recursively:
         results = perform_rag_decomposition_answer_recursively(query, chat_llm, vector_store)
     elif args.perform_rag_decomposition_answer_individually:
         results = perform_rag_decomposition_answer_individually(query, chat_llm, vector_store)
-    elif args.perform_rag_step_back_prompting:
-        results = perform_rag_step_back_prompting(query, chat_llm, vector_store)
     else:
         print("No operation selected. Use the CLI flags to choose an operation.")
         return

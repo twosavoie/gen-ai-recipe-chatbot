@@ -27,19 +27,21 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import HypotheticalDocumentEmbedder
 
 # RAG imports
-from gutenberg.pg_store_texts_and_test import (
-    perform_similarity_search,
-    perform_retrieval_qa,
-    perform_rag_decomposition,
-    perform_rag_decomposition_answer_recursively,
-    perform_rag_decomposition_answer_individually,
-    perform_rag_step_back_prompting
+from gutenberg.books_storage_and_retrieval import (
+    perform_similarity_search as perform_books_similarity_search,
+    perform_retrieval_qa as perform_books_retrieval_qa,
+    perform_rag_step_back_prompting as perform_books_rag_step_back_prompting,
+    perform_rag_decomposition as perform_books_rag_decomposition,
+    perform_rag_decomposition_answer_recursively as perform_books_rag_decomposition_answer_recursively,
+    perform_rag_decomposition_answer_individually as perform_books_rag_decomposition_answer_individually
 )
 
-from gutenberg.pg_store_recipes_and_test_v2 import (
-    perform_self_query_retrieval,
-    perform_rag_fusion_retrieval,
-    perform_self_query_rag_fusion_retrieval
+from gutenberg.recipes_storage_and_retrieval_v2 import (
+    perform_similarity_search as perform_recipes_similarity_search,
+    perform_self_query_retrieval as perform_recipes_self_query_retrieval,
+    perform_multi_query_retrieval as perform_recipes_multi_query_retrieval,
+    perform_rag_fusion_retrieval as perform_recipes_rag_fusion_retrieval,
+    perform_self_query_rag_fusion_retrieval as perform_recipes_self_query_rag_fusion_retrieval
 )
 
 # Load environment variables from a .env file
@@ -130,146 +132,175 @@ memory = MemorySaver()
 ####################################################################
 # Similarity Search (Books)
 ####################################################################
-def create_similarity_search_tool():
+def create_books_similarity_search_tool():
     @tool
-    def get_similarity_search(input: str) -> str:
+    def get_books_similarity_search(input: str) -> str:
         """
         Tool to perform a simple similarity search on the 'books' vector store.
         Returns the top matching chunks as JSON.
         """
         query = input.strip()
-        results = perform_similarity_search(query, chat_llm, books_vector_store)
+        results = perform_books_similarity_search(query, chat_llm, books_vector_store)
         # 'perform_similarity_search' might return Documents or a custom structure.
         # Convert it to JSON or a string
         return json.dumps(results, default=str)
-    return get_similarity_search
+    return get_books_similarity_search
 
 
 ####################################################################
 # Retrieval QA (Books)
 ####################################################################
-def create_retrieval_qa_tool():
+def create_books_retrieval_qa_tool():
     @tool
-    def get_retrieval_qa(input: str) -> str:
+    def get_books_retrieval_qa(input: str) -> str:
         """
         Tool for short Q&A over the 'books' corpus using retrieval QA.
         """
         query = input.strip()
-        chain_result = perform_retrieval_qa(query, chat_llm, books_vector_store)
+        chain_result = perform_books_retrieval_qa(query, chat_llm, books_vector_store)
         # Typically returns a dict with 'answer', 'sources', 'source_documents', etc.
         return json.dumps(chain_result, default=str)
-    return get_retrieval_qa
-
-
-####################################################################
-# RAG Decomposition (Books)
-####################################################################
-def create_rag_decomposition_tool():
-    @tool
-    def get_rag_decomposition(input: str) -> str:
-        """
-        Tool for multi-step RAG Decomposition (standard) on the 'books' corpus.
-        """
-        query = input.strip()
-        results = perform_rag_decomposition(query, chat_llm, books_vector_store)
-        # Usually returns a dict with sub-queries, answers, sources
-        return json.dumps(results, default=str)
-    return get_rag_decomposition
-
-
-####################################################################
-# RAG Decomposition Answer Recursively (Books)
-####################################################################
-def create_rag_decomposition_recursive_tool():
-    @tool
-    def get_rag_decomposition_recursive(input: str) -> str:
-        """
-        Tool for RAG Decomposition with an iterative/recursive approach.
-        """
-        query = input.strip()
-        results = perform_rag_decomposition_answer_recursively(query, chat_llm, books_vector_store)
-        return json.dumps(results, default=str)
-    return get_rag_decomposition_recursive
-
-
-####################################################################
-# RAG Decomposition Answer Individually (Books)
-####################################################################
-def create_rag_decomposition_individual_tool():
-    @tool
-    def get_rag_decomposition_individual(input: str) -> str:
-        """
-        Tool for RAG Decomposition that answers sub-questions individually,
-        then synthesizes a final answer.
-        """
-        query = input.strip()
-        results = perform_rag_decomposition_answer_individually(query, chat_llm, books_vector_store)
-        return json.dumps(results, default=str)
-    return get_rag_decomposition_individual
+    return get_books_retrieval_qa
 
 
 ####################################################################
 # RAG Step-Back Prompting (Books)
 ####################################################################
 
-def create_rag_step_back_prompting_tool():
+def create_books_rag_step_back_prompting_tool():
     @tool
-    def get_rag_step_back_prompting(input: str) -> str:
+    def get_books_rag_step_back_prompting(input: str) -> str:
         """
         Tool for RAG Step-Back Prompting, generating a generic paraphrased question
         and retrieving both original & stepped-back context.
         """
         query = input.strip()
-        results = perform_rag_step_back_prompting(query, chat_llm, books_vector_store)
+        results = perform_books_rag_step_back_prompting(query, chat_llm, books_vector_store)
         return json.dumps(results, default=str)
-    return get_rag_step_back_prompting
+    return get_books_rag_step_back_prompting
+
+####################################################################
+# RAG Decomposition (Books)
+####################################################################
+def create_books_rag_decomposition_tool():
+    @tool
+    def get_books_rag_decomposition(input: str) -> str:
+        """
+        Tool for multi-step RAG Decomposition (standard) on the 'books' corpus.
+        """
+        query = input.strip()
+        results = perform_books_rag_decomposition(query, chat_llm, books_vector_store)
+        # Usually returns a dict with sub-queries, answers, sources
+        return json.dumps(results, default=str)
+    return get_books_rag_decomposition
+
+
+####################################################################
+# RAG Decomposition Answer Recursively (Books)
+####################################################################
+def create_books_rag_decomposition_recursive_tool():
+    @tool
+    def get_books_rag_decomposition_recursive(input: str) -> str:
+        """
+        Tool for RAG Decomposition with an iterative/recursive approach.
+        """
+        query = input.strip()
+        results = perform_books_rag_decomposition_answer_recursively(query, chat_llm, books_vector_store)
+        return json.dumps(results, default=str)
+    return get_books_rag_decomposition_recursive
+
+
+####################################################################
+# RAG Decomposition Answer Individually (Books)
+####################################################################
+def create_books_rag_decomposition_individual_tool():
+    @tool
+    def get_books_rag_decomposition_individual(input: str) -> str:
+        """
+        Tool for RAG Decomposition that answers sub-questions individually,
+        then synthesizes a final answer.
+        """
+        query = input.strip()
+        results = perform_books_rag_decomposition_answer_individually(query, chat_llm, books_vector_store)
+        return json.dumps(results, default=str)
+    return get_books_rag_decomposition_individual
+
+
+####################################################################
+# Similarity Search (Recipes)
+####################################################################
+def create_recipes_similarity_search_tool():
+    @tool
+    def get_recipes_similarity_search(input: str) -> str:
+        """
+        Tool to perform a simple similarity search on the 'recipes' vector store.
+        Returns the top matching chunks as JSON.
+        """
+        query = input.strip()
+        results = perform_recipes_similarity_search (query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
+        return json.dumps(results, default=str)
+    return get_recipes_similarity_search
 
 
 ####################################################################
 # Self-Query Retrieval (Recipes)
 ####################################################################
-def create_self_query_tool():
+def create_recipes_self_query_tool():
     @tool
-    def get_self_query(input: str) -> str:
+    def get_recipes_self_query(input: str) -> str:
         """
         Tool for searching recipes with metadata-based self-query retrieval.
         (E.g., filter by recipe_type, cuisine, special_considerations, etc.)
         """
         query = input.strip()
-        results = perform_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
+        results = perform_recipes_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
         return json.dumps(results, default=str)
-    return get_self_query
+    return get_recipes_self_query
 
+####################################################################
+# Multi-Query Tool (Recipes)
+####################################################################
+def create_recipes_multi_query_tool():
+    @tool
+    def get_recipes_multi_query(input: str) -> str:
+        """
+        Tool for searching recipes with metadata-based self-query and multi-query retrieval.
+        (E.g., filter by recipe_type, cuisine, special_considerations, etc.)
+        """
+        query = input.strip()
+        results = perform_recipes_multi_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
+        return json.dumps(results, default=str)
+    return get_recipes_multi_query
 
 ####################################################################
 # RAG Fusion Retrieval (Recipes)
 ####################################################################
-def create_rag_fusion_tool():
+def create_recipes_rag_fusion_tool():
     @tool
-    def get_rag_fusion(input: str) -> str:
+    def get_recipes_rag_fusion(input: str) -> str:
         """
         Tool for multi-query + reciprocal rank fusion retrieval over the 'recipes' corpus.
         Useful for broad coverage of ambiguous or multi-faceted recipe requests.
         """
         query = input.strip()
         # Adjust 'num_queries' as needed
-        results = perform_rag_fusion_retrieval(query, chat_llm, recipes_vector_store, num_queries=4)
+        results = perform_recipes_rag_fusion_retrieval(query, chat_llm, recipes_vector_store, num_queries=4)
         return json.dumps(results, default=str)
-    return get_rag_fusion
+    return get_recipes_rag_fusion
 
 
 ####################################################################
 # Self-Query + RAG Fusion Combined (Recipes)
 ####################################################################
-def create_self_query_rag_fusion_tool():
+def create_recipes_self_query_rag_fusion_tool():
     @tool
-    def get_self_query_rag_fusion(input: str) -> str:
+    def get_recipes_self_query_rag_fusion(input: str) -> str:
         """
         Tool for combining multi-angle (RAG Fusion) retrieval with
         metadata-based self-query filtering on the 'recipes' corpus.
         """
         query = input.strip()
-        results = perform_self_query_rag_fusion_retrieval(
+        results = perform_recipes_self_query_rag_fusion_retrieval(
             query,
             multi_query_llm=chat_llm,   # or a different LLM if desired
             self_query_llm=chat_llm,
@@ -278,7 +309,7 @@ def create_self_query_rag_fusion_tool():
             num_queries=4
         )
         return json.dumps(results, default=str)
-    return get_self_query_rag_fusion
+    return get_recipes_self_query_rag_fusion
 
 # Routes
 # Index route
@@ -291,27 +322,33 @@ def index():
 @app.route("/stream", methods=["GET"])
 @login_required
 def stream():
-    similarity_search_tool = create_similarity_search_tool()
-    retrieval_qa_tool = create_retrieval_qa_tool()
-    rag_decomp_tool = create_rag_decomposition_tool()
-    rag_decomp_recursive_tool = create_rag_decomposition_recursive_tool()
-    rag_decomp_individual_tool = create_rag_decomposition_individual_tool()
-    rag_step_back_tool = create_rag_step_back_prompting_tool()
-    self_query_tool = create_self_query_tool()
-    rag_fusion_tool = create_rag_fusion_tool()
-    self_query_rag_fusion_tool = create_self_query_rag_fusion_tool()
+
+    recipes_similarity_search_tool = create_recipes_similarity_search_tool()
+    recipes_self_query_tool = create_recipes_self_query_tool()
+    recipes_multi_query_tool = create_recipes_multi_query_tool()
+    recipes_rag_fusion_tool = create_recipes_rag_fusion_tool()
+    recipes_self_query_rag_fusion_tool = create_recipes_self_query_rag_fusion_tool()
+    books_retrieval_qa_tool = create_books_retrieval_qa_tool()
+    books_similarity_search_tool = create_books_similarity_search_tool()
+    books_rag_step_back_prompting_tool = create_books_rag_step_back_prompting_tool()
+    books_rag_decomposition_tool = create_books_rag_decomposition_tool()
+    books_rag_decomposition_recursive_tool = create_books_rag_decomposition_recursive_tool()
+    books_rag_decomposition_individual_tool = create_books_rag_decomposition_individual_tool()
+
     graph = create_react_agent(
         model=chat_llm,
-        tools=[
-            similarity_search_tool,
-            retrieval_qa_tool,
-            rag_decomp_tool,
-            rag_decomp_recursive_tool,
-            rag_decomp_individual_tool,
-            rag_step_back_tool,
-            self_query_tool,
-            rag_fusion_tool,
-            self_query_rag_fusion_tool,
+        tools=[   
+            recipes_similarity_search_tool,
+            recipes_self_query_tool,
+            recipes_multi_query_tool,
+            recipes_rag_fusion_tool,
+            recipes_self_query_rag_fusion_tool,
+            books_retrieval_qa_tool,
+            books_similarity_search_tool,
+            books_rag_step_back_prompting_tool,
+            books_rag_decomposition_tool,
+            books_rag_decomposition_recursive_tool,
+            books_rag_decomposition_individual_tool
         ],
         checkpointer=memory,
         debug=True

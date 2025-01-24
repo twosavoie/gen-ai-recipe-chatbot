@@ -22,13 +22,11 @@ from langchain_community.query_constructors.supabase import SupabaseVectorTransl
 from langchain.chains.query_constructor.base import StructuredQueryOutputParser, get_query_constructor_prompt
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser, BaseOutputParser
 from typing import List
 from langchain_core.prompts import PromptTemplate
-
-# ============== RAG Fusion: Extra Imports ================
+from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.load import dumps, loads
-# =========================================================
 
 # Supabase
 from supabase import create_client, Client
@@ -480,8 +478,6 @@ def perform_similarity_search(query, llm, vector_store):
     Perform HyDE retrieval (or standard) with a single query.
     """
     recipes = vector_store.similarity_search(query)
-
-    print(recipes)
     
     chain = RunnableParallel(
         nutrition=generate_nutrition_info_chain(llm),
@@ -490,19 +486,7 @@ def perform_similarity_search(query, llm, vector_store):
         recipe=RunnablePassthrough()
     )
 
-    outputs = []
-
-    for i, recipe in enumerate(recipes, start=1):
-        output = chain.invoke({"text": recipe.page_content, "metadata": recipe.metadata})
-        processed_output = {
-            "nutrition": output["nutrition"],
-            "shopping_list": output["shopping_list"],
-            "factoids": output["factoids"],
-            "recipe": output["recipe"]
-        }
-        outputs.append(processed_output)
-
-    return outputs
+    return build_outputs(recipes, llm)
 
 
 ###############################################################################
@@ -581,6 +565,44 @@ def perform_self_query_retrieval(query, llm, vector_store, structured_query_tran
 
     return build_outputs(recipes, llm)
 
+def perform_multi_query_retrieval(query, llm, vector_store, structured_query_translator):
+    """
+    Creates a SelfQueryRetriever for metadata fields about recipes.
+    """
+    sq_retriever = build_self_query_retriever(llm, vector_store, structured_query_translator)
+
+    # Output parser will split the LLM result into a list of queries
+    class LineListOutputParser(BaseOutputParser[List[str]]):
+        """Output parser for a list of lines."""
+
+        def parse(self, text: str) -> List[str]:
+            lines = text.strip().split("\n")
+            return list(filter(None, lines))  # Remove empty lines
+
+
+    output_parser = LineListOutputParser()
+
+    query_prompt = PromptTemplate(
+        input_variables=["question"],
+        template="""You are an AI language model assistant. Your task is to generate five 
+        different versions of the given user question to retrieve relevant documents from a vector 
+        database. By generating multiple perspectives on the user question, your goal is to help
+        the user overcome some of the limitations of the distance-based similarity search. 
+        Provide these alternative questions separated by newlines.
+        Original question: {question}""",
+    )
+
+    # Chain
+    mq_chain = query_prompt | llm | output_parser
+
+    mq_retriever = MultiQueryRetriever(
+        retriever=sq_retriever, llm_chain=mq_chain, parser_key="lines"
+    )
+
+    recipes = mq_retriever.invoke(query)
+
+    return build_outputs(recipes, llm)
+
 
 ###############################################################################
 # LLM CHAINS
@@ -616,7 +638,6 @@ def generate_factoids_chain(llm):
         and methods. Return only a single valid JSON object in the following format.\n
         {text}"""
     ) | llm | StrOutputParser()
-
 
 ###############################################################################
 # RAG FUSION HELPER FUNCTIONS
@@ -768,7 +789,6 @@ def perform_self_query_rag_fusion_retrieval(
     # --- Step 4: Format results
     return build_outputs(fused_docs, self_query_llm)
 
-
 def build_outputs(results: List[Document], llm) -> List[dict]:
 
     chain = RunnableParallel(
@@ -803,13 +823,15 @@ def main():
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
-    parser.add_argument("-hyde", "--use_hyde", type=bool, default=True, help="Use HyDE embeddings.")
-    parser.add_argument("-sq", "--use_self_query", type=bool, default=True, help="Use self-query retrieval.")
+    parser.add_argument("-q", "--query", type=str, default="Find dessert recipes that combine french and italian cooking.", help="Query to search for.")
+    parser.add_argument("-ss", "--use_simlarity_search", type=bool, default=True, help="Use similarity search.")
+    parser.add_argument("-sq", "--use_self_query", type=bool, default=False, help="Use self-query retrieval.")
+    parser.add_argument("-hy", "--use_hyde", type=bool, default=False, help="Use hyde.")
+    parser.add_argument("-mq", "--use_multi_query", type=bool, default=False, help="Use multi-query retrieval.")
     parser.add_argument("-rf", "--use_rag_fusion", type=bool, default=False, help="Use RAG Fusion retrieval.")
     parser.add_argument("-sqrf", "--use_self_query_rag_fusion", type=bool, default=False, help="Combine self-query and RAG fusion.")
 
 
-    
     args = parser.parse_args()
     
     top_n = args.top_n
@@ -904,16 +926,21 @@ def main():
 
     results = None
 
-    query = "Find dessert recipes that combine french and italian cooking."
+    query = args.query
     
     # ================== Decide which retrieval to use ================== #
-    if args.use_rag_fusion:
-        print(f"\n[Using RAG Fusion] for query: {query}\n")
-        results = perform_rag_fusion_retrieval(query, chat_llm, recipes_vector_store, num_queries=4)
-
-    elif args.use_self_query:
+    if args.use_self_query:
         print(f"\nSelf-query retrieval with: {query}")
         results = perform_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
+    elif args.use_simlarity_search:
+        print(f"\nSimilarity search with: {query}")
+        results = perform_similarity_search(query, chat_llm, recipes_vector_store)
+    elif args.use_multi_query:
+        print(f"\nMulti-query retrieval with: {query}")
+        results = perform_multi_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
+    elif args.use_rag_fusion:
+        print(f"\n[Using RAG Fusion] for query: {query}\n")
+        results = perform_rag_fusion_retrieval(query, chat_llm, recipes_vector_store, num_queries=4)
     elif args.use_self_query_rag_fusion:
         print(f"\nCombining self-query and RAG Fusion for: {query}")
         results = perform_self_query_rag_fusion_retrieval(
@@ -924,9 +951,6 @@ def main():
             SupabaseVectorTranslator(), 
             num_queries=4
         )
-    else:
-        print(f"\nSimilarity search with: {query}")
-        results = perform_similarity_search(query, chat_llm, recipes_vector_store)
     # =================================================================== #
 
     for i, res in enumerate(results, start=1):
