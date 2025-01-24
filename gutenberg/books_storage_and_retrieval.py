@@ -81,7 +81,7 @@ def download_and_store_books(matching_books, vector_store):
             for i, chunk in enumerate(chunks):
                 # Construct metadata as a JSON object
                 metadata = {
-                    "source": title, # Key must be 'source' for LangChain
+                    "source": title,  # Key must be 'source' for LangChain
                     "gutenberg_id": str(book_id),
                     "chunk_index": i,
                     "content_length": len(chunk)
@@ -98,26 +98,82 @@ def download_and_store_books(matching_books, vector_store):
     for i in range(0, len(documents), batch_size):
         batch = documents[i:i + batch_size]
         try:
-            vector_store.add_documents(
-                batch
-            )
-            print(f"Successfully uploaded batch {i//batch_size + 1} "
-                  f"of {len(documents)//batch_size + 1}.")
+            vector_store.add_documents(batch)
+            print(f"Successfully uploaded batch {i // batch_size + 1} "
+                  f"of {len(documents) // batch_size + 1}.")
         except Exception as e:
             print(f"Error storing batch {i // batch_size + 1}: {e}")
 
+###############################################################################
+# RAG FUNCTIONS
+###############################################################################
+
+###############################################################################
+# Retrieval QA
+###############################################################################
 
 def perform_retrieval_qa(query, llm, vector_store):
-    """Perform a retreival qa using LangChain."""
+    """
+    Perform a retrieval QA using LangChain. 
+    Returns a unified data structure.
+    """
     print("Performing retrieval qa...")
-    books_retriever = vector_store.as_retriever(search_kwargs={"k": 3})  # Fetch top 3 matches
-    books_qa_chain = RetrievalQAWithSourcesChain.from_chain_type(llm=llm, retriever=books_retriever, chain_type="stuff", return_source_documents=True)
-    return books_qa_chain.invoke({"question": query})
+    books_retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+    chain = RetrievalQAWithSourcesChain.from_chain_type(
+        llm=llm, 
+        retriever=books_retriever, 
+        chain_type="stuff", 
+        return_source_documents=True
+    )
+
+    chain_result = chain.invoke({"question": query})
+    # chain_result typically:
+    # {
+    #   "answer": "...",
+    #   "sources": "...",
+    #   "source_documents": [...],
+    # }
+
+    return {
+        "method": "retrieval_qa",
+        "query": query,
+        "results": [
+            {
+                "sub_query": query,  # same as main query
+                "answer": chain_result.get("answer"),
+                "sources": chain_result.get("sources"),
+                "source_documents": chain_result.get("source_documents", [])
+            }
+        ]
+    }
+
+###############################################################################
+# Similiarity Search
+###############################################################################
 
 def perform_similarity_search(query, vector_store):
-    """Perform a similarity search using LangChain."""
+    """
+    Perform a similarity search using LangChain, returning a unified data structure.
+    """
     print("Performing similarity search...")
-    return vector_store.similarity_search(query)
+    docs = vector_store.similarity_search(query)
+
+    # Wrap each Document in an item of the "results" list
+    results_list = []
+    for doc in docs:
+        results_list.append({
+            "sub_query": query,
+            "answer": None,  # No LLM answer, just raw search results
+            "sources": doc.metadata.get("source") if doc.metadata else None,
+            "source_documents": [doc]
+        })
+
+    return {
+        "method": "similarity_search",
+        "query": query,
+        "results": results_list
+    }
+
 
 ###############################################################################
 # MAIN
@@ -129,12 +185,12 @@ def main():
     )
     
     parser.add_argument("-lb", "--load_books", type=bool, default=False, help="Search and load books.")
-    
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
-    
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
-
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
+    parser.add_argument("-q", "--query", type=str, default="How to make a sponge cake with fruit flavor?", help="Query for retrieval.")
+    parser.add_argument("-ss", "--perform_similarity_search", type=bool, default=False, help="Perform similarity search.")
+    parser.add_argument("-rq", "--perform_retrieval_qa", type=bool, default=False, help="Perform retrieval QA.")
     
     # Parse the arguments
     args = parser.parse_args()
@@ -144,7 +200,7 @@ def main():
     end_date = args.end_date
 
     # Load environment variables
-    load_dotenv(override=True) # Load environment variables from .env
+    load_dotenv(override=True)  # Load environment variables from .env
 
     SUPABASE_URL = os.getenv("SUPABASE_HTTPS_URL")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -161,11 +217,11 @@ def main():
         )
     )
 
-    # Initialize embeddings & LLMs
+    # Initialize embeddings & LLM
     embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
 
     chat_llm = ChatOpenAI(
-        model="gpt-4o",
+        model="gpt-4o",  # or "gpt-3.5-turbo", etc.
         temperature=0,
         openai_api_key=OPENAI_API_KEY
     )
@@ -198,19 +254,29 @@ def main():
         print("Downloading and storing books...")
         download_and_store_books(matching_books, vector_store)
 
-    # Perform query
-    query = "How to bake a cake"
-    print(f"Performing similarity search with: {query}")
-    #results = perform_similarity_search(query, vector_store)
-    results = perform_retrieval_qa(query, chat_llm, vector_store)
+    # Perform a sample query
+    query = args.query
+    print(f"Running query: {query}")
 
-    print("-" * 70)
-    print(f"Answer:\n\n {results['answer']}")
-    print("-" * 70)
-    print(f"Sources:\n\n {results['sources']}")
-    print("-" * 70)
-    print(f"Source Documents:\n\n {results['source_documents']}")
-    print("-" * 70)
+    if args.perform_similarity_search:
+        results = perform_similarity_search(query, vector_store)
+    elif args.perform_retrieval_qa:
+        results = perform_retrieval_qa(query, chat_llm, vector_store)
+    else:
+        print("No operation selected. Use the CLI flags to choose an operation.")
+        return
+
+    # Print out the results
+    for i, res in enumerate(results['results'], start=1):
+        print(f"\n[Query {i}]: {res['sub_query']}")
+        print("\n[Answer]")
+        print(res["answer"])
+        print("\n[Source Documents]\n")
+        for doc in res["source_documents"]:
+            print("\n[Source]", doc.metadata.get("source"))
+            print("\n[Content]", doc.page_content)
+        print("-" * 70)
+
 
 if __name__ == "__main__":
     main()

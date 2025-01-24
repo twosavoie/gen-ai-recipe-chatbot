@@ -150,7 +150,7 @@ def construct_metadata(gutenberg_book_id, cache):
         print(f"No metadata found for book ID {gutenberg_book_id}.")
         return {
             "gutenberg_id": gutenberg_book_id,
-            "source": "Unknown", # Key must be 'source' for LangChain
+            "source": "Unknown",
             "authors": [],
             "subjects": []
         }
@@ -171,7 +171,7 @@ def construct_metadata(gutenberg_book_id, cache):
     return {
         "gutenberg_id": gutenberg_id,
         "date_issued": dateissued,
-        "source": title,
+        "source": title, # Key must be 'source' for LangChain
         "authors": authors.split("# ") if authors else [],
         "subjects": subjects.split("# ") if subjects else [],
         **nlp_metadata
@@ -223,6 +223,19 @@ def download_and_store_books(matching_books, cache, vector_store):
                   f"of {len(documents)//batch_size + 1}.")
         except Exception as e:
             print(f"Error storing batch {i // batch_size + 1}: {e}")
+
+
+###############################################################################
+# BASELINE SIMILARITY SEARCH (SINGLE-QUERY)
+###############################################################################
+
+def perform_similarity_search(query, llm, vector_store):
+    """
+    Perform retrieval with a single query.
+    """
+    recipes = vector_store.similarity_search(query)
+
+    return build_outputs(recipes, llm)
 
 ###############################################################################
 # SELF-QUERY RETRIEVER
@@ -279,6 +292,9 @@ def perform_self_query_retrieval(query, llm, vector_store):
 
     results = retriever.invoke(query)
 
+    return build_outputs(results, llm)
+
+def build_outputs(results, llm):
     outputs = []
 
     for i, res in enumerate(results, start=1):
@@ -300,12 +316,13 @@ def main():
     )
     
     parser.add_argument("-lb", "--load_books", type=bool, default=False, help="Search and load books.")
-    
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
-    
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
-
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
+    parser.add_argument("-q", "--query", type=str, default="Find Poached Eggs Recipes.", help="Query to perform.")
+    parser.add_argument("-ss", "--use_simlarity_search", type=bool, default=True, help="Use similarity search.")
+    parser.add_argument("-sr", "--use_self_query_retrieval", type=bool, default=False, help="Use self query retrieval.")
+    
     
     # Parse the arguments
     args = parser.parse_args()
@@ -381,9 +398,15 @@ def main():
 
 
     # Perform query
-    query = "Find Poached Eggs Recipies."
-    print(f"\nSelf-query retrieval with: {query}")
-    results = perform_self_query_retrieval(query, chat_llm, vector_store)
+    query = args.query
+    results = []
+    
+    if args.use_simlarity_search:
+        print(f"\nSimilarity search with: {query}")
+        results = perform_self_query_retrieval(query, chat_llm, vector_store)
+    elif args.use_self_query_retrieval:
+        print(f"\nSelf-query retrieval with: {query}")
+        results = perform_self_query_retrieval(query, chat_llm, vector_store)
 
     for i, res in enumerate(results, start=1):
         print(f"\n[Result {i}] Recipe: {res['recipe']}")
