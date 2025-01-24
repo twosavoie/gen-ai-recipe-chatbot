@@ -11,6 +11,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import SupabaseVectorStore
+from langchain.chains import RetrievalQAWithSourcesChain
 
 # Supabase
 from supabase import create_client, Client
@@ -80,7 +81,7 @@ def download_and_store_books(matching_books, vector_store):
             for i, chunk in enumerate(chunks):
                 # Construct metadata as a JSON object
                 metadata = {
-                    "source": title, # Key must be named source for compatibility with LangChain
+                    "source": title,  # Key must be 'source' for LangChain
                     "gutenberg_id": str(book_id),
                     "chunk_index": i,
                     "content_length": len(chunk)
@@ -97,19 +98,43 @@ def download_and_store_books(matching_books, vector_store):
     for i in range(0, len(documents), batch_size):
         batch = documents[i:i + batch_size]
         try:
-            vector_store.add_documents(
-                batch
-            )
-            print(f"Successfully uploaded batch {i//batch_size + 1} "
-                  f"of {len(documents)//batch_size + 1}.")
+            vector_store.add_documents(batch)
+            print(f"Successfully uploaded batch {i // batch_size + 1} "
+                  f"of {len(documents) // batch_size + 1}.")
         except Exception as e:
             print(f"Error storing batch {i // batch_size + 1}: {e}")
 
+###############################################################################
+# RAG FUNCTIONS
+###############################################################################
+
+###############################################################################
+# Similiarity Search
+###############################################################################
 
 def perform_similarity_search(query, vector_store):
-    """Perform a similarity search using LangChain."""
+    """
+    Perform a similarity search using LangChain, returning a unified data structure.
+    """
     print("Performing similarity search...")
-    return vector_store.similarity_search(query)
+    docs = vector_store.similarity_search(query)
+
+    # Wrap each Document in an item of the "results" list
+    results_list = []
+    for doc in docs:
+        results_list.append({
+            "sub_query": query,
+            "answer": None,  # No LLM answer, just raw search results
+            "sources": doc.metadata.get("source") if doc.metadata else None,
+            "source_documents": [doc]
+        })
+
+    return {
+        "method": "similarity_search",
+        "query": query,
+        "results": results_list
+    }
+
 
 ###############################################################################
 # MAIN
@@ -121,13 +146,12 @@ def main():
     )
     
     parser.add_argument("-lb", "--load_books", type=bool, default=False, help="Search and load books.")
-    
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
-    
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
-
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
-    
+    parser.add_argument("-q", "--query", type=str, default="How to make a sponge cake with fruit flavor?", help="Query for retrieval.")
+    parser.add_argument("-ss", "--perform_similarity_search", type=bool, default=True, help="Perform similarity search.")
+
     # Parse the arguments
     args = parser.parse_args()
     
@@ -136,7 +160,7 @@ def main():
     end_date = args.end_date
 
     # Load environment variables
-    load_dotenv(override=True) # Load environment variables from .env
+    load_dotenv(override=True)  # Load environment variables from .env
 
     SUPABASE_URL = os.getenv("SUPABASE_HTTPS_URL")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -153,11 +177,11 @@ def main():
         )
     )
 
-    # Initialize embeddings & LLMs
+    # Initialize embeddings & LLM
     embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
 
     chat_llm = ChatOpenAI(
-        model="gpt-4o",
+        model="gpt-4o",  # or "gpt-3.5-turbo", etc.
         temperature=0,
         openai_api_key=OPENAI_API_KEY
     )
@@ -190,16 +214,27 @@ def main():
         print("Downloading and storing books...")
         download_and_store_books(matching_books, vector_store)
 
-    # Perform query
-    query = "How to bake a cake"
-    print(f"Performing similarity search with: {query}")
-    results = perform_similarity_search(query, vector_store)
+    # Perform a sample query
+    query = args.query
+    print(f"Running query: {query}")
 
-    for i, res in enumerate(results, start=1):
-        snippet = res.page_content[:500].replace("\n", " ") + "..."
-        print(f"[Result {i}] Snippet: {snippet}")
-        print(f"Metadata: {res.metadata}")
+    if args.perform_similarity_search:
+        results = perform_similarity_search(query, vector_store)
+    else:
+        print("No operation selected. Use the CLI flags to choose an operation.")
+        return
+
+    # Print out the results
+    for i, res in enumerate(results['results'], start=1):
+        print(f"\n[Query {i}]: {res['sub_query']}")
+        print("\n[Answer]")
+        print(res["answer"])
+        print("\n[Source Documents]\n")
+        for doc in res["source_documents"]:
+            print("\n[Source]", doc.metadata.get("source"))
+            print("\n[Content]", doc.page_content)
         print("-" * 70)
+
 
 if __name__ == "__main__":
     main()
