@@ -1,45 +1,32 @@
 <!doctype html>
 <html lang="en">
-
 <head>
   <title>ChefBoost</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>ChefBoost</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,200..1000;1,200..1000&display=swap"
-    rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap"
-    rel="stylesheet">
-  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+
   <!-- Marked for Markdown parsing -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <style>
     /* Basic styling for chat messages */
     .messages {
-      max-height: 60vh;
-      /* Allow scrolling if needed */
-      overflow-y: auto;
-      /* Vertical scrollbar if content exceeds 60vh */
+      max-height: 60vh;       /* Allow scrolling if needed */
+      overflow-y: auto;       /* Vertical scrollbar if content exceeds 60vh */
       /* margin: 1rem 0; */
       padding: 1rem;
       background: #fafafa;
       border-radius: 4px;
     }
-
-    .assistant-message,
-    .user-message {
+    .assistant-message, .user-message {
       margin: 0.5rem 0;
       padding: 0.75rem;
       border-radius: 4px;
       line-height: 1.4;
     }
-
     .assistant-message {
       background: #f7f7f7;
     }
-
     .user-message {
       background: #d0ebff;
       text-align: right;
@@ -54,18 +41,11 @@
       width: 32px;
       height: 32px;
       animation: spin 1s linear infinite;
-      margin: 0 auto;
-      /* center horizontally within its container */
+      margin: 0 auto; /* center horizontally within its container */
     }
-
     @keyframes spin {
-      0% {
-        transform: rotate(0deg);
-      }
-
-      100% {
-        transform: rotate(360deg);
-      }
+      0%   { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 
@@ -174,12 +154,12 @@
       <figure>
         <a href="{{ url_for('index') }}">
           <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="logo">
-          <span class="visually-hidden">ChefBoost</span>
         </a>
         <h1 class="visually-hidden">ChefBoost</h1>
       </figure>
       <div class="user-info">
-        <p>My account</p>
+        <div class="avatar-circle">
+        </div>
       </div>
     </div>
   </header>
@@ -190,16 +170,6 @@
         <section class="chatbot-header">
           <div class="chatbot-content-wrapper">
             <h2>👋 ChefBoost!</h2>
-            <div class="open-close-icons">
-              <button type="button">
-                <img src="{{ url_for('static', filename='open-icon.png' ) }}" alt="" class="logo"><span
-                  class="visually-hidden">open modal</span>
-              </button>
-              <button type="button">
-                <img src="{{ url_for('static', filename='close-icon.png' ) }}" alt="" class="logo"><span
-                  class="visually-hidden">close modal</span>
-              </button>
-            </div>
           </div>
         </section>
 
@@ -215,7 +185,6 @@
                 <textarea id="query" placeholder="Ask ChefBoost..." autofocus required></textarea>
                 <button type="submit" id="send-btn">
                   <img src="{{ url_for('static', filename='send-icon.png') }}" alt="Send" class="send-icon">
-                  <span class="visually-hidden">Send prompt</span>
                 </button>
               </div>
             </form>
@@ -225,5 +194,4 @@
     </div>
   </main>
 </body>
-
 </html>
