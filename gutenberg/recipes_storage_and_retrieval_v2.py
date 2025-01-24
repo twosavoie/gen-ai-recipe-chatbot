@@ -22,9 +22,10 @@ from langchain_community.query_constructors.supabase import SupabaseVectorTransl
 from langchain.chains.query_constructor.base import StructuredQueryOutputParser, get_query_constructor_prompt
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser, BaseOutputParser
 from typing import List
 from langchain_core.prompts import PromptTemplate
+from langchain.retrievers.multi_query import MultiQueryRetriever
 
 # Supabase
 from supabase import create_client, Client
@@ -563,6 +564,44 @@ def perform_self_query_retrieval(query, llm, vector_store, structured_query_tran
 
     return build_outputs(recipes, llm)
 
+def perform_multi_query_retrieval(query, llm, vector_store, structured_query_translator):
+    """
+    Creates a SelfQueryRetriever for metadata fields about recipes.
+    """
+    sq_retriever = build_self_query_retriever(llm, vector_store, structured_query_translator)
+
+    # Output parser will split the LLM result into a list of queries
+    class LineListOutputParser(BaseOutputParser[List[str]]):
+        """Output parser for a list of lines."""
+
+        def parse(self, text: str) -> List[str]:
+            lines = text.strip().split("\n")
+            return list(filter(None, lines))  # Remove empty lines
+
+
+    output_parser = LineListOutputParser()
+
+    query_prompt = PromptTemplate(
+        input_variables=["question"],
+        template="""You are an AI language model assistant. Your task is to generate five 
+        different versions of the given user question to retrieve relevant documents from a vector 
+        database. By generating multiple perspectives on the user question, your goal is to help
+        the user overcome some of the limitations of the distance-based similarity search. 
+        Provide these alternative questions separated by newlines.
+        Original question: {question}""",
+    )
+
+    # Chain
+    mq_chain = query_prompt | llm | output_parser
+
+    mq_retriever = MultiQueryRetriever(
+        retriever=sq_retriever, llm_chain=mq_chain, parser_key="lines"
+    )
+
+    recipes = mq_retriever.invoke(query)
+
+    return build_outputs(recipes, llm)
+
 
 ###############################################################################
 # LLM CHAINS
@@ -637,7 +676,8 @@ def main():
     parser.add_argument("-q", "--query", type=str, default="Find dessert recipes that combine french and italian cooking.", help="Query to search for.")
     parser.add_argument("-ss", "--use_simlarity_search", type=bool, default=True, help="Use similarity search.")
     parser.add_argument("-sq", "--use_self_query", type=bool, default=False, help="Use self-query retrieval.")
-    parser.add_argument("-hy", "--use_hyde", type=bool, default=False, help="Use hyde.")    
+    parser.add_argument("-hy", "--use_hyde", type=bool, default=False, help="Use hyde.")
+    parser.add_argument("-mq", "--use_multi_query", type=bool, default=False, help="Use multi-query retrieval.")
 
     args = parser.parse_args()
     
@@ -742,6 +782,9 @@ def main():
     elif args.use_simlarity_search:
         print(f"\nSimilarity search with: {query}")
         results = perform_similarity_search(query, chat_llm, recipes_vector_store)
+    elif args.use_multi_query:
+        print(f"\nMulti-query retrieval with: {query}")
+        results = perform_multi_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
     # =================================================================== #
 
     for i, res in enumerate(results, start=1):
