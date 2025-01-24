@@ -6,3 +6,8 @@ werkzeug
 flask-login
 psycopg2-binary
 supabase
+langchain
+langchain-community
+langchain_openai
+lark
+gutenbergpy

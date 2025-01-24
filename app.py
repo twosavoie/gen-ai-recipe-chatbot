@@ -1,19 +1,25 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash
+import time
+import json
+import logging
+import datetime
+from dotenv import load_dotenv
+
+# Flask imports
+from flask import Flask, render_template, request, redirect, url_for, flash, Response, stream_with_context
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from dotenv import load_dotenv
-import time
-import logging
-import datetime
 
 # Supabase imports
 from supabase import create_client
 from supabase.client import ClientOptions
 
-# Load environment variables from a .env file
-load_dotenv()
+# LangChain imports
+from langchain.agents import tool
+from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
+
 
 # Load environment variables from a .env file
 load_dotenv(override=True)
@@ -23,12 +29,12 @@ log = logging.getLogger("assistant")
 logging.basicConfig(filename="app.log", level=logging.INFO)
 
 # Import and configure OpenAI
-from openai import OpenAI
+from langchain_openai import ChatOpenAI
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("Missing OPENAI_API_KEY in environment variables.")
 
-client = OpenAI(api_key=api_key)
+chat_llm = ChatOpenAI(model="gpt-4o-mini", api_key=api_key)
 
 # Flask app setup
 app = Flask(__name__)
@@ -55,12 +61,89 @@ class User(UserMixin, db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+# Initialize Supabase and LangChain components
+
+supabase_https_url = os.getenv("SUPABASE_HTTPS_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+
+supabase_client = create_client(supabase_https_url, supabase_key, options=ClientOptions(
+    postgrest_client_timeout=120,
+    storage_client_timeout=120,
+    schema="public",
+  ))
+
+
+# Define MemorySaver instance for langgraph agent
+memory = MemorySaver()
+
+
 # Routes
+# Index route
 @app.route("/", methods=["GET"])
 @login_required
 def index():
-    return render_template("index.html")
+    return render_template("index.html")  # Serve the chat interface
 
+# Stream route
+@app.route("/stream", methods=["GET"])
+@login_required
+def stream():
+
+    graph = create_react_agent(
+        model=chat_llm,
+        tools=[],
+        checkpointer=memory,
+        debug=True
+    )
+
+    inputs = {"messages": [("user", request.args.get("query", ""))]}
+    config = {"configurable": {"thread_id": "thread-1"}}
+
+    HEARTBEAT_INTERVAL = 5
+
+    @stream_with_context
+    def generate():
+        stream_iterator = graph.stream(inputs, config, stream_mode="values")
+        last_sent_time = time.time()
+
+        while True:
+            # Check if we've been idle too long
+            if time.time() - last_sent_time > HEARTBEAT_INTERVAL:
+                # Send a heartbeat
+                yield "data: [heartbeat]\n\n"
+                last_sent_time = time.time()
+
+            try:
+                step = next(stream_iterator)
+            except StopIteration:
+                # No more data from the agent
+                break
+            except Exception as e:
+                # On any exception, report it and stop
+                yield f"data: Error: {str(e)}\n\n"
+                return
+
+            # We got a new message from the agent
+            message = step["messages"][-1]
+            if isinstance(message, tuple):
+                pass
+                # yield f"data: {message[1]}\n\n" # Uncomment to allow for user messages to be displayed
+            else:
+                if message.response_metadata.get("finish_reason") == "stop":
+                    escaped_message = json.dumps(message.content)
+                    yield f"data: {escaped_message}\n\n"
+                    break
+            last_sent_time = time.time()
+
+        # Final marker
+        yield "data: [DONE]\n\n"
+
+    return Response(
+        generate(),
+        content_type="text/event-stream"
+    )
+
+# Sign up route
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
@@ -85,6 +168,7 @@ def signup():
 
     return render_template("signup.html")
 
+# Login route
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -98,10 +182,11 @@ def login():
 
         login_user(user)
         flash("Logged in successfully!", "success")
-        return redirect(url_for("index"))
+        return redirect("/")
 
     return render_template("login.html")
 
+# My Account route
 @app.route("/my_account", methods=["GET", "POST"])
 @login_required
 def my_account():
@@ -125,6 +210,7 @@ def my_account():
 
     return render_template("my_account.html", user=current_user)
 
+# Logout route
 @app.route("/logout")
 @login_required
 def logout():
