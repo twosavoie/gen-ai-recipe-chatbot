@@ -224,6 +224,19 @@ def download_and_store_books(matching_books, cache, vector_store):
         except Exception as e:
             print(f"Error storing batch {i // batch_size + 1}: {e}")
 
+
+###############################################################################
+# BASELINE SIMILARITY SEARCH (SINGLE-QUERY)
+###############################################################################
+
+def perform_similarity_search(query, llm, vector_store):
+    """
+    Perform retrieval with a single query.
+    """
+    recipes = vector_store.similarity_search(query)
+
+    return build_outputs(recipes, llm)
+
 ###############################################################################
 # SELF-QUERY RETRIEVER
 ###############################################################################
@@ -279,6 +292,9 @@ def perform_self_query_retrieval(query, llm, vector_store):
 
     results = retriever.invoke(query)
 
+    return build_outputs(results, llm)
+
+def build_outputs(results, llm):
     outputs = []
 
     for i, res in enumerate(results, start=1):
@@ -305,6 +321,7 @@ def main():
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
     parser.add_argument("-q", "--query", type=str, default="Find Poached Eggs Recipes.", help="Query to perform.")
     parser.add_argument("-ss", "--use_simlarity_search", type=bool, default=True, help="Use similarity search.")
+    parser.add_argument("-sr", "--use_self_query_retrieval", type=bool, default=False, help="Use self query retrieval.")
     
     
     # Parse the arguments
@@ -386,6 +403,9 @@ def main():
     
     if args.use_simlarity_search:
         print(f"\nSimilarity search with: {query}")
+        results = perform_self_query_retrieval(query, chat_llm, vector_store)
+    elif args.use_self_query_retrieval:
+        print(f"\nSelf-query retrieval with: {query}")
         results = perform_self_query_retrieval(query, chat_llm, vector_store)
 
     for i, res in enumerate(results, start=1):
