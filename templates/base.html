@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <title>{% block title %}ChefBoost{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,200..1000;1,200..1000&display=swap"
+    rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap"
+    rel="stylesheet">
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+
+  {% block head %}
+  <!-- Additional head content can be added by child templates here -->
+  {% endblock %}
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="header-content-wrapper">
+          <figure>
+            <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='logo.png' ) }}" alt=""
+                class="logo"></a><span class="visually-hidden">Chef
+              Boost</span>
+          </figure>
+          {% block header %}
+            <!-- Additional header content can be added by child templates here -->
+          {% endblock %}
+        </div>
+      </header>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main content -->
+    <main>
+        {% block content %}
+        <!-- Content goes here -->
+        {% endblock %}
+    </main>
+</body>
+</html>

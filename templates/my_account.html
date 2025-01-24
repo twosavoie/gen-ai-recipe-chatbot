@@ -1,17 +1,9 @@
-<!doctype html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-  <title>Account | ChefBoost</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,200..1000;1,200..1000&display=swap"
-    rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap"
-    rel="stylesheet">
-  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+{% block title %}My Account | ChefBoost{% endblock %}
+
+{% block head %}
+
   <style>
     body {
       font-family: 'Mulish', sans-serif;
@@ -106,23 +98,15 @@
       /* Slightly lighter black on hover */
     }
   </style>
-</head>
+{% endblock %}
 
-<body>
-  <header class="site-header">
-    <div class="header-content-wrapper">
-      <figure>
-        <a href="{{ url_for('index') }}">
-          <img src="{{ url_for('static', filename='logo.png' ) }}" alt="" class="logo">
-          <span class="visually-hidden">ChefBoost</span>
-        </a>
-      </figure>
+{% block header %}
       <h1>My Account</h1>
       <div class="user-info">
       </div>
-    </div>
-  </header>
-  <main>
+{% endblock %}
+
+{% block content %}
     <div class="account-container">
       <h1>Welcome, !</h1>
       <div class="profile-details">
@@ -153,7 +137,4 @@
         </div>
       </form>
     </div>
-  </main>
-</body>
-
-</html>
+{% endblock %}

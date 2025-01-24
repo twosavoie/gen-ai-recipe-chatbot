@@ -1,10 +1,8 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <title>ChefBoost</title>
-  <title>ChefBoost</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}" />
+{% extends "base.html" %}
 
+{% block title %}ChefBoost{% endblock %}
+
+{% block head %}
   <!-- Marked for Markdown parsing -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
@@ -146,25 +144,9 @@
       };
     }
   </script>
-</head>
+{% endblock %}
 
-<body>
-  <header class="site-header">
-    <div class="header-content-wrapper">
-      <figure>
-        <a href="{{ url_for('index') }}">
-          <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="logo">
-        </a>
-        <h1 class="visually-hidden">ChefBoost</h1>
-      </figure>
-      <div class="user-info">
-        <div class="avatar-circle">
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <main>
+{% block content %}
     <div class="main-content-wrapper">
       <div class="chat-container">
         <section class="chatbot-header">
@@ -192,6 +174,4 @@
         </section>
       </div>
     </div>
-  </main>
-</body>
-</html>
+{% endblock %}
