@@ -1,3 +1,7 @@
 openai
 flask
 python-dotenv
+langchain
+langchain-community
+langchain_openai
+lark
