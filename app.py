@@ -8,11 +8,6 @@ from dotenv import load_dotenv
 # Flask imports
 from flask import Flask, render_template, request, Response, stream_with_context
 
-
-# Supabase imports
-from supabase import create_client
-from supabase.client import ClientOptions
-
 # LangChain imports
 from langchain.agents import tool
 from langgraph.prebuilt import create_react_agent
