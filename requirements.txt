@@ -10,5 +10,6 @@ supabase
 langchain
 langchain-community
 langchain_openai
+langgraph
 lark
 gutenbergpy
