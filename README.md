@@ -32,11 +32,37 @@ On Windows:
 <br>
 To run your code, in the command line run:
 
+## Flask:
+
 Without a debugger:
 `flask run`
 
 With a debugger:
 `flask run --debug`
+
+## The app.py file:
+
+On a Mac:
+`python3 app.py`
+
+On Windows:
+`python app.py`
+
+## The initial run of the pg_store_texts_and_test.py file:
+
+On a Mac:
+`python3 pg_store_texts_and_test.py -lb True`
+
+On Windows:
+`python pg_store_texts_and_test.py  -lb True`
+
+## The pg_store_texts_and_test.py file after the initial run:
+
+On a Mac:
+`python3 pg_store_texts_and_test.py`
+
+On Windows:
+`python pg_store_texts_and_test.py`
 
 <br>
 The app will run at: http://127.0.0.1:5000/

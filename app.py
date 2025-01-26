@@ -62,7 +62,6 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # Initialize Supabase and LangChain components
-
 supabase_https_url = os.getenv("SUPABASE_HTTPS_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 
@@ -227,4 +226,5 @@ def log_run(run_status):
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()  # Ensure the database is created
+        print("Database created.")
     app.run(debug=True)
