@@ -48,21 +48,21 @@ On a Mac:
 On Windows:
 `python app.py`
 
-## The initial run of the pg_store_texts_and_test.py file:
+## The initial run of the books_storage_and_retrieval.py file:
 
 On a Mac:
-`python3 pg_store_texts_and_test.py -lb True`
+`python3 books_storage_and_retrieval.py -lb True`
 
 On Windows:
-`python pg_store_texts_and_test.py  -lb True`
+`python books_storage_and_retrieval.py  -lb True`
 
-## The pg_store_texts_and_test.py file after the initial run:
+## The books_storage_and_retrieval.py file after the initial run:
 
 On a Mac:
-`python3 pg_store_texts_and_test.py`
+`python3 books_storage_and_retrieval.py`
 
 On Windows:
-`python pg_store_texts_and_test.py`
+`python books_storage_and_retrieval.py`
 
 <br>
 The app will run at: http://127.0.0.1:5000/
