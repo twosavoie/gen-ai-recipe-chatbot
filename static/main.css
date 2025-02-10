@@ -35,6 +35,14 @@ body {
   overflow: hidden;
 }
 
+a {
+  color: inherit;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
 .site-header {
   top: 0;
   width: 100%;
@@ -48,20 +56,23 @@ body {
 .header-content-wrapper {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  flex-flow: row wrap;
   width: 90%;
   max-width: 1400px;
+  padding-bottom: 20px;
 }
 
 .site-header .logo {
   height: 35px;
   line-height: 0;
+  margin: 30px 0 20px 0;
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  margin: 20px;
+  margin: 0 20px 0 20px;
 }
 
 .user-info img {
@@ -73,9 +84,8 @@ body {
 }
 
 .chat-container {
-  /* Todo: Check width once additional features have been decided */
-  max-width: 500px;
-  width: 70%;
+  max-width: 800px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -270,7 +280,7 @@ main {
   /* Allow scrolling within this container */
   overflow: auto;
   align-items: stretch;
-  justify-content: flex-end;
+  justify-content: center;
   width: 90%;
   max-width: 1400px;
 }
@@ -296,15 +306,15 @@ main {
   flex-direction: row;
   overflow: auto;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   width: 90%;
   max-width: 1400px;
   margin-bottom: 35px;
 }
 
 .login-content-wrapper {
-  max-width: 500px;
-  width: 70%;
+  max-width: 800px;
+  width: 100%;
   display: flex;
   flex-flow: row wrap;
   box-sizing: border-box;
@@ -342,7 +352,7 @@ main {
   display: flex;
   flex-direction: column;
   margin-bottom: 20px;
-  width: 60%;
+  width: 100%;
 }
 
 .form-group label {
@@ -504,4 +514,51 @@ main {
   padding: 10px;
   border-radius: 8px;
   overflow-x: auto;
+}
+
+@media screen and (min-width: 768px) {
+  h1 {
+    font-size: 2rem;
+  }
+
+  .header-content-wrapper {
+    justify-content: space-between;
+    flex-flow: row wrap;
+    padding-bottom: 0;
+  }
+
+  .chatbot-content-wrapper {
+    width: 75%;
+  }
+
+  .form-group {
+    width: 60%;
+  }
+}
+
+@media screen and (min-width: 1200px) {
+  .main-content-wrapper {
+    justify-content: flex-end;
+  }
+
+  .chat-container {
+    max-width: 500px;
+  }
+
+  .chatbot-content-wrapper {
+    width: 90%;
+  }
+
+  .login-form {
+    justify-content: flex-end;
+  }
+
+  .login-content-wrapper {
+    max-width: 500px;
+  }
+
+  .form-group {
+    width: 65%;
+  }
+
 }

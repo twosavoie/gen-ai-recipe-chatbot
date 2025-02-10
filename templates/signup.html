@@ -3,30 +3,30 @@
 {% block title %}Sign Up | ChefBoost{% endblock %}
 
 {% block header %}
-      <div class="user-info">
-        <img src="{{ url_for('static', filename='avatar.png' ) }}" alt="" class="user-image">
-        <a href="{{ url_for('login') }}" class="link-underline">Log in</a>
-      </div>
+<div class="user-info">
+  <img src="{{ url_for('static', filename='avatar.png' ) }}" alt="" class="user-image">
+  <a href="{{ url_for('login') }}" class="link-underline">Log in</a>
+</div>
 {% endblock %}
 
 {% block content %}
-    <div class="login-form">
-      <div class="login-content-wrapper">
-        <h2>Welcome to ChefBoost!</h2>
-        <p>Your go-to kitchen sidekick for delicious recipes, pro cooking tips, and real-time chef support.</p>
-        <p class="subtext">Let's make something amazing together!</p>
-        <form method="POST" class="auth-form-content-wrapper">
-          <div class="form-group">
-            <label for="username">Email</label>
-            <input type="text" id="username" name="username" placeholder="emma@example.com" required>
-          </div>
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password" placeholder="Password" required>
-          </div>
-          <button type="submit" class="btn">Get Started</button>
-        </form>
+<div class="login-form">
+  <div class="login-content-wrapper">
+    <h1>Welcome to ChefBoost!</h1>
+    <p>Your go-to kitchen sidekick for delicious recipes, pro cooking tips, and real-time chef support.</p>
+    <p class="subtext">Let's make something amazing together!</p>
+    <form method="POST" class="auth-form-content-wrapper">
+      <div class="form-group">
+        <label for="username">Email</label>
+        <input type="text" id="username" name="username" placeholder="emma@example.com" required>
       </div>
-    </div>
-    </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Password" required>
+      </div>
+      <button type="submit" class="btn">Get Started</button>
+    </form>
+  </div>
+</div>
+</div>
 {% endblock %}
