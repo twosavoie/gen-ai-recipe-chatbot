@@ -48,21 +48,13 @@ On a Mac:
 On Windows:
 `python app.py`
 
-## The initial run of the pg_store_texts_and_test.py file:
+## Example of running a file using a CLI built with argparse: books_storage_and_retrieval.py file:
 
 On a Mac:
-`python3 books_storage_and_retrieval.py -lb True`
+`python3 pg_store_texts_and_test.py -lb True`
 
 On Windows:
-`python books_storage_and_retrieval.py  -lb True`
-
-## The pg_store_texts_and_test.py file after the initial run:
-
-On a Mac:
-`python3 pg_store_texts_and_test.py`
-
-On Windows:
-`python pg_store_texts_and_test.py`
+`python pg_store_texts_and_test.py  -lb True`
 
 <br>
 The app will run at: http://127.0.0.1:5000/
