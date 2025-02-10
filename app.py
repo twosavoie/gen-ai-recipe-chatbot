@@ -91,13 +91,6 @@ books_vector_store = SupabaseVectorStore(
     query_name="match_books"
     )
 
-recipes_vector_store = SupabaseVectorStore(
-    client=supabase_client,
-    table_name="recipes",
-    embedding=embeddings,
-    query_name="match_recipes"
-    )
-
 # Define MemorySaver instance for langgraph agent
 memory = MemorySaver()
 
