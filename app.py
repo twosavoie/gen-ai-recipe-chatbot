@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 from flask import Flask, render_template, request, Response, stream_with_context
 
 # LangChain imports
-from langchain.agents import tool
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
