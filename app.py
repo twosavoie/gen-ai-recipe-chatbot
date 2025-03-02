@@ -16,7 +16,6 @@ from supabase import create_client
 from supabase.client import ClientOptions
 
 # LangChain imports
-from langchain.agents import tool
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
