@@ -20,7 +20,6 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import SupabaseVectorStore
 
 from langchain.agents import tool
-from langchain_community.query_constructors.supabase import SupabaseVectorTranslator
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
