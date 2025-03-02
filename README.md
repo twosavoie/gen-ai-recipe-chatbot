@@ -32,11 +32,29 @@ On Windows:
 <br>
 To run your code, in the command line run:
 
+## Flask:
+
 Without a debugger:
 `flask run`
 
 With a debugger:
 `flask run --debug`
+
+## The app.py file:
+
+On a Mac:
+`python3 app.py`
+
+On Windows:
+`python app.py`
+
+## Example of running a file using a CLI built with argparse: books_storage_and_retrieval.py file:
+
+On a Mac:
+`python3 pg_store_texts_and_test.py -lb True`
+
+On Windows:
+`python pg_store_texts_and_test.py  -lb True`
 
 <br>
 The app will run at: http://127.0.0.1:5000/
