@@ -2,10 +2,6 @@ import os
 import argparse
 from dotenv import load_dotenv
 
-# Additional imports for the two new variants
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate, FewShotChatMessagePromptTemplate
-
 # Project Gutenberg
 from gutenbergpy.gutenbergcache import GutenbergCache
 from gutenbergpy.textget import get_text_by_id
@@ -15,19 +11,43 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import SupabaseVectorStore
-from langchain.chains import RetrievalQAWithSourcesChain
-from langchain import hub
+from langchain.chains.query_constructor.schema import AttributeInfo
+from langchain.retrievers.self_query.base import SelfQueryRetriever
 
 # Supabase
 from supabase import create_client, Client
 from supabase.client import ClientOptions
+
+#spaCy
+import spacy
 
 ###############################################################################
 # NV & GLOBALS
 ###############################################################################
 
 # Constants
+# Define a list of keywords to search for in Project Gutenberg
 COOKING_KEYWORDS = ["cooking", "recipes", "cookbook", "culinary"]
+
+# Define a list of common ingredients for filtering
+COMMON_INGREDIENTS = {
+    "flour", "sugar", "butter", "salt", "milk", "egg", "vanilla", "baking powder",
+    "baking soda", "oil", "water", "yeast", "honey", "cinnamon", "chocolate",
+    "garlic", "onion", "tomato", "cheese", "beef", "chicken", "pork", "fish",
+    "carrot", "potato", "pepper", "cream", "rice", "pasta", "broth", "vinegar",
+    "herbs", "spices", "nuts", "almonds", "walnuts", "raisins", "yeast"
+}
+
+# Define lists of recipe types, cuisines, and special considerations
+
+RECIPE_TYPE = ["dessert", "soup", "salad", "main course", "appetizer", "beverage"]
+
+CUISINE = ["italian", "french", "german", "australian", "english",  "american", "thai", "japanese", "chinese", "mexican", "indian"]
+
+SPECIAL_CONSIDERATIONS = ["vegetarian", "vegan", "keto", "nut-free", "dairy-free", "gluten-free", "low-carb"]   
+
+# Global for spaCy NLP model
+nlp = None
 
 ###############################################################################
 # GUTENBERG SEARCH & METADATA
@@ -64,499 +84,222 @@ def search_gutenberg_titles(cache, keywords, top_n=10, start_date=None, end_date
         matching_books.append((gutenbergbookid, title))
     return matching_books
 
-def download_and_store_books(matching_books, vector_store):
-    """Download books, split text, generate embeddings, and store in Supabase."""
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200
-    )
 
+def extract_metadata_nlp(content):
+    """
+    Use NLP to extract recipe-related metadata from the text content, including a focused list of ingredients.
+    """
+    # Tokenize and process text with spaCy
+    doc = nlp(content)
+
+    # Extract nouns and proper nouns (potential ingredients)
+    possible_ingredients = [
+        token.text.lower() for token in doc
+        if token.pos_ in {"NOUN", "PROPN"} and token.is_alpha
+    ]
+
+    # Filter using the predefined ingredients list
+    ingredients = [ingredient for ingredient in possible_ingredients if ingredient in COMMON_INGREDIENTS]
+
+    # Deduplicate and sort the list of ingredients
+    ingredients = sorted(set(ingredients))
+
+    metadata = {
+        "recipe_type": list(set(word for word in content.lower().split() if word in RECIPE_TYPE)),
+        "cuisine": list(set(word for word in content.lower().split() if word in CUISINE)),
+        "special_considerations": list(set(word for word in content.lower().split() if word in SPECIAL_CONSIDERATIONS)),
+        "ingredients": ingredients
+    }
+    return metadata
+
+
+def construct_metadata(gutenberg_book_id, cache):
+    """
+    Build minimal metadata from Gutenberg's cache to attach to each recipe.
+    """
+    query = f"""
+        SELECT 
+            b.gutenbergbookid AS gutenbergbookid,
+            b.dateissued AS dateissued, 
+            t.name AS title, 
+            GROUP_CONCAT(a.name, '# ') AS authors,
+            GROUP_CONCAT(s.name, '# ') AS subjects
+        FROM books b
+        LEFT JOIN titles t ON b.id = t.bookid
+        LEFT JOIN book_authors ba ON b.id = ba.bookid
+        LEFT JOIN authors a ON ba.authorid = a.id
+        LEFT JOIN book_subjects bs ON b.id = bs.bookid
+        LEFT JOIN subjects s ON bs.subjectid = s.id
+        WHERE b.gutenbergbookid = {gutenberg_book_id}
+        GROUP BY b.id, t.name;
+    """
+    cursor = cache.native_query(query)
+
+    # Handle the cursor result correctly
+    result = None
+    for row in cursor:
+        result = row  # Assuming one row is returned per book_id
+
+    # Ensure result exists
+    if not result:
+        print(f"No metadata found for book ID {gutenberg_book_id}.")
+        return {
+            "gutenberg_id": gutenberg_book_id,
+            "source": "Unknown",
+            "authors": [],
+            "subjects": []
+        }
+
+    gutenberg_id, dateissued, title, authors, subjects = result
+    if authors is None:
+        authors = "Unknown"
+    if subjects is None:
+        subjects = "Unknown"
+
+    # Download book content
+    raw_text = get_text_by_id(gutenberg_book_id)
+    content = raw_text.decode("utf-8", errors="ignore") if raw_text else ""
+
+    # Extract metadata using NLP
+    nlp_metadata = extract_metadata_nlp(content)
+
+    return {
+        "gutenberg_id": gutenberg_id,
+        "date_issued": dateissued,
+        "source": title, # Key must be 'source' for LangChain
+        "authors": authors.split("# ") if authors else [],
+        "subjects": subjects.split("# ") if subjects else [],
+        **nlp_metadata
+    }
+
+###############################################################################
+# DOWNLOAD, EXTRACT, & STORE
+###############################################################################
+
+def download_and_store_books(matching_books, cache, vector_store):
+    """
+    Pipeline:
+      1. Download text
+      2. Extract metadata using NLP
+      3. Split text into chunks
+      4. Store chunks in Supabase 
+    """
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     documents = []
 
-    for book_id, title in matching_books:
-        print(f"Processing: {title} (ID: {book_id})")
+    for gutenberg_book_id, title in matching_books:
+        print(f"Processing: {title} (ID: {gutenberg_book_id})")
         try:
-            # Download book content
-            raw_text = get_text_by_id(book_id)
-            content = raw_text.decode("utf-8", errors="ignore")  # Decode to string
-
-            # Split the text into manageable chunks
+            metadata = construct_metadata(gutenberg_book_id, cache)
+            raw_text = get_text_by_id(gutenberg_book_id)
+            content = raw_text.decode("utf-8", errors="ignore")
             chunks = text_splitter.split_text(content)
 
             for i, chunk in enumerate(chunks):
-                # Construct metadata as a JSON object
-                metadata = {
-                    "source": title,  # Key must be 'source' for LangChain
-                    "gutenberg_id": str(book_id),
-                    "chunk_index": i,
-                    "content_length": len(chunk)
-                }
-
-                # Create a Document object
-                documents.append(Document(page_content=chunk, metadata=metadata))
+                chunk_metadata = metadata.copy()
+                chunk_metadata["chunk_index"] = i
+                chunk_metadata["content_length"] = len(chunk)
+                document = Document(page_content=chunk, metadata=chunk_metadata)
+                documents.append(document)
+                # print(document)
 
         except Exception as e:
             print(f"Error processing {title}: {e}")
 
-    # Batch insert documents to Supabase
+    #Batch upload documents to Supabase
     batch_size = 50  # Adjust as necessary
     for i in range(0, len(documents), batch_size):
         batch = documents[i:i + batch_size]
         try:
-            vector_store.add_documents(batch)
-            print(f"Successfully uploaded batch {i // batch_size + 1} "
-                  f"of {len(documents) // batch_size + 1}.")
+            vector_store.add_documents(
+                batch
+            )
+            print(f"Successfully uploaded batch {i//batch_size + 1} "
+                  f"of {len(documents)//batch_size + 1}.")
         except Exception as e:
             print(f"Error storing batch {i // batch_size + 1}: {e}")
 
-###############################################################################
-# RAG FUNCTIONS
-###############################################################################
 
 ###############################################################################
-# Retrieval QA
+# BASELINE SIMILARITY SEARCH (SINGLE-QUERY)
 ###############################################################################
 
-def perform_retrieval_qa(query, llm, vector_store):
+def perform_similarity_search(query, llm, vector_store):
     """
-    Perform a retrieval QA using LangChain. 
-    Returns a unified data structure.
+    Perform retrieval with a single query.
     """
-    print("Performing retrieval qa...")
-    books_retriever = vector_store.as_retriever(search_kwargs={"k": 3})
-    chain = RetrievalQAWithSourcesChain.from_chain_type(
-        llm=llm, 
-        retriever=books_retriever, 
-        chain_type="stuff", 
-        return_source_documents=True
-    )
+    recipes = vector_store.similarity_search(query)
 
-    chain_result = chain.invoke({"question": query})
-    # chain_result typically:
-    # {
-    #   "answer": "...",
-    #   "sources": "...",
-    #   "source_documents": [...],
-    # }
-
-    return {
-        "method": "retrieval_qa",
-        "query": query,
-        "results": [
-            {
-                "sub_query": query,  # same as main query
-                "answer": chain_result.get("answer"),
-                "sources": chain_result.get("sources"),
-                "source_documents": chain_result.get("source_documents", [])
-            }
-        ]
-    }
+    return build_outputs(recipes, llm)
 
 ###############################################################################
-# Similiarity Search
+# SELF-QUERY RETRIEVER
 ###############################################################################
 
-def perform_similarity_search(query, vector_store):
+def perform_self_query_retrieval(query, llm, vector_store):
     """
-    Perform a similarity search using LangChain, returning a unified data structure.
-    """
-    print("Performing similarity search...")
-    docs = vector_store.similarity_search(query)
-
-    # Wrap each Document in an item of the "results" list
-    results_list = []
-    for doc in docs:
-        results_list.append({
-            "sub_query": query,
-            "answer": None,  # No LLM answer, just raw search results
-            "sources": doc.metadata.get("source") if doc.metadata else None,
-            "source_documents": [doc]
-        })
-
-    return {
-        "method": "similarity_search",
-        "query": query,
-        "results": results_list
-    }
-
-
-###############################################################################
-# RAG Step-Back Prompting
-###############################################################################
-
-def perform_rag_step_back_prompting(query, llm, vector_store):
-    """
-    Step-Back Prompting
-
-    1) Generate a more generic/paraphrased "step-back" question.
-    2) Retrieve context for the original question and the step-back question.
-    3) Combine both contexts to produce a final comprehensive answer.
-    4) Return an output data structure consistent with other RAG functions.
+    Creates a SelfQueryRetriever for the following metadata fields:
+      - recipe_title
+      - recipe_type
+      - cuisine
+      - special_considerations
+      - ingredients
     """
 
-    print("[RAG Step-Back Prompting]")
-
-    # --------------------------------------------------------------------------
-    # 1) Define few-shot examples and set up the step-back prompt
-    # --------------------------------------------------------------------------
-
-    examples = [
-        {
-            "input": "How do I bake a chocolate cake from scratch?",
-            "output": "What is the general process of baking a cake from scratch?",
-        },
-        {
-            "input": "What are the health benefits of using olive oil instead of butter in cooking?",
-            "output": "What is the general difference between cooking with olive oil and cooking with butter?",
-        },
+    metadata_field_info = [
+        AttributeInfo(
+            name="recipe_title",
+            description="The title of the recipe. Use the like operator for partial matches.",
+            type="string",
+        ),
+        AttributeInfo(
+            name="recipe_type",
+            description=f"The type of recipe (e.g., {RECIPE_TYPE}).",
+            type="string",
+        ),
+        AttributeInfo(
+            name="cuisine",
+            description=f"The cuisine type (e.g., {CUISINE}). Use the like operator for partial matches.",
+            type="string",
+        ),
+        AttributeInfo(
+            name="special_considerations",
+            description=f"Dietary restrictions (e.g., {SPECIAL_CONSIDERATIONS}). Use the like operator for partial matches.",
+            type="list[string]",
+        ),
+        AttributeInfo(
+            name="ingredients",
+            description=f"Key ingredients in the recipe (e.g., {COMMON_INGREDIENTS}). Use the like operator for partial matches.",
+            type="list[string]",
+        ),
     ]
 
-    # Create an example-based prompt to demonstrate how to transform questions
-    example_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("human", "{input}"), 
-            ("ai", "{output}"),
-        ]
-    )
-    few_shot_prompt = FewShotChatMessagePromptTemplate(
-        example_prompt=example_prompt,
-        examples=examples,
-    )
+    doc_content_desc = "Text content describing a cooking recipe"
+    document_contents = "The text content of a cooking recipe, including its ingredients, instructions, and relevant metadata."
 
-    # Wrap these few-shot examples in a final system+user prompt
-    step_back_system_message = (
-        "You are an expert at cooking knowledge. Your task is to step back "
-        "and paraphrase a question to a more generic step-back question, "
-        "which is easier to answer. Here are a few examples:"
-    )
-    step_back_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", step_back_system_message),
-            few_shot_prompt,  # few-shot examples
-            ("user", "{question}"),
-        ]
+    retriever = SelfQueryRetriever.from_llm(
+        llm,
+        vector_store,
+        doc_content_desc,
+        metadata_field_info,
+        verbose=True
     )
 
-    # Construct a small "chain" that calls the LLM and parses out the string
-    generate_queries_step_back = step_back_prompt | llm | StrOutputParser()
+    results = retriever.invoke(query)
 
-    # --------------------------------------------------------------------------
-    # 2) Retrieve context using the original question
-    # --------------------------------------------------------------------------
-    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
-    normal_docs = retriever.invoke(query)
+    return build_outputs(results, llm)
 
-    # --------------------------------------------------------------------------
-    # 3) Generate the step-back question & retrieve context for it
-    # --------------------------------------------------------------------------
-    step_back_question = generate_queries_step_back.invoke({"question": query})
-    step_back_docs = retriever.invoke(step_back_question)
+def build_outputs(results, llm):
+    outputs = []
 
-    # --------------------------------------------------------------------------
-    # 4) Build a final synthesis prompt that references both contexts
-    # --------------------------------------------------------------------------
-    response_prompt_template = """You are an expert of cooking knowledge. 
-    I am going to ask you a question. Your response should be comprehensive and 
-    should not contradict the following context if it is relevant. If it is not 
-    relevant, ignore it.
+    for i, res in enumerate(results, start=1):
+        processed_output = {
+            "recipe": res.page_content,
+            "metadata": res.metadata
+        }
+        outputs.append(processed_output)
 
-    # Normal Context:
-    {normal_context}
-
-    # Step-Back Context:
-    {step_back_context}
-
-    # Original Question: {question}
-    # Answer:
-    """
-    response_prompt = ChatPromptTemplate.from_template(response_prompt_template)
-
-    # Flatten the retrieved docs into strings
-    normal_context_str = "\n\n".join([doc.page_content for doc in normal_docs])
-    step_back_context_str = "\n\n".join([doc.page_content for doc in step_back_docs])
-
-    # Prepare the final LLM input
-    final_input = {
-        "normal_context": normal_context_str,
-        "step_back_context": step_back_context_str,
-        "question": query,
-    }
-
-    # Synthesize the final answer
-    final_answer = (response_prompt | llm | StrOutputParser()).invoke(final_input)
-
-    # --------------------------------------------------------------------------
-    # 5) Return a structure consistent with other RAG methods
-    # --------------------------------------------------------------------------
-    # Optionally, combine docs or keep them separate
-    combined_docs = normal_docs + step_back_docs
-
-    return {
-        "method": "rag_step_back_prompting",
-        "query": query,
-        "results": [
-            {
-                # You can store the step-back question here, or the original question
-                "sub_query": step_back_question,
-                "answer": final_answer,
-                "sources": None,  # or extract doc metadata
-                "source_documents": combined_docs
-            }
-        ]
-    }
-
-###############################################################################
-# RAG DECOMPOSITION
-###############################################################################
-
-def perform_rag_decomposition(query, llm, vector_store):
-    """
-    (Original) Decompose a user query into multiple sub-queries, perform retrieval QA for each,
-    and return a unified data structure.
-    """
-    print("Performing standard RAG decomposition...")
-    # 1) Decompose the query
-    template = """You are a helpful assistant that generates multiple sub-questions related to an input question.
-The goal is to break down the input into a set of sub-problems / sub-questions that can be answered in isolation.
-Generate multiple search queries related to: {question}
-Output (3 queries):"""
-    
-    prompt_decomposition = ChatPromptTemplate.from_template(template)
-    generate_queries_decomposition = (
-        prompt_decomposition 
-        | llm
-        | StrOutputParser()
-        | (lambda x: x.split("\n"))
-    )
-    
-    sub_queries = generate_queries_decomposition.invoke({"question": query})
-
-    # 2) For each sub-query, call your retrieval QA
-    rag_results_list = []
-    for sub_query in sub_queries:
-        clean_sub_query = sub_query.strip("1234567890. )-")
-        retrieval_result = perform_retrieval_qa(clean_sub_query, llm, vector_store)
-        
-        if retrieval_result["results"]:
-            item = retrieval_result["results"][0]
-            rag_results_list.append(item)
-        else:
-            rag_results_list.append({
-                "sub_query": clean_sub_query,
-                "answer": None,
-                "sources": None,
-                "source_documents": []
-            })
-
-    # 3) Build the unified structure
-    return {
-        "method": "rag_decomposition",
-        "query": query,
-        "results": rag_results_list
-    }
-
-###############################################################################
-# RAG Decomposition: Answering Recursively
-###############################################################################
-
-def perform_rag_decomposition_answer_recursively(query, llm, vector_store):
-    """
-    Answer Recursively
-    
-    This approach simulates building up a "Q&A memory" (q_a_pairs) as you iteratively
-    answer queries. For simplicity, we'll demonstrate only a single pass with the
-    final question.
-    
-    In a real-world scenario, you might iterate over multiple questions or keep
-    updating q_a_pairs with each new question to refine answers further.
-    """
-
-    print("[RAG Decomposition - Answering Recursively]")
-
-    # Prompt template that includes the question, background Q+A pairs, and retrieved context
-    template = """Here is the question you need to answer:
-
-    \n --- \n {question} \n --- \n
-
-    Here is any available background question + answer pairs:
-
-    \n --- \n {q_a_pairs} \n --- \n
-
-    Here is additional context relevant to the question: 
-
-    \n --- \n {context} \n --- \n
-
-    Use the above context and any background question + answer pairs to answer the question: {question}
-    """
-
-    decomposition_prompt = ChatPromptTemplate.from_template(template)
-
-    # Helper to format Q&A pairs
-    def format_qa_pair(q, ans):
-        return f"Question: {q}\nAnswer: {ans}".strip()
-
-    # "q_a_pairs" could be updated as you recursively handle more questions
-    q_a_pairs = ""
-
-    # Retrieve context from the vector store (e.g., similarity search)
-    docs = vector_store.similarity_search(query)
-    context = "\n".join([doc.page_content for doc in docs[:3]])
-
-    # Build the prompt input
-    prompt_input = {
-        "question": query,
-        "q_a_pairs": q_a_pairs,
-        "context": context
-    }
-
-    # Run the chain
-    answer = (decomposition_prompt | llm | StrOutputParser()).invoke(prompt_input)
-
-    # Update Q&A pairs (if you wanted to handle multiple queries recursively)
-    q_a_pair = format_qa_pair(query, answer)
-    q_a_pairs += "\n---\n" + q_a_pair
-
-    # Return data in a similar structure
-    return {
-        "method": "rag_decomposition_recursive",
-        "query": query,
-        "results": [
-            {
-                "sub_query": query,
-                "answer": answer,
-                "sources": None,  # or you can store doc metadata here
-                "source_documents": docs
-            }
-        ]
-    }
-
-###############################################################################
-# RAG Decomposition: Answer Individually
-###############################################################################
-
-def perform_rag_decomposition_answer_individually(query, llm, vector_store):
-    """
-    Answer Individually
-
-    1) Decompose the user's query into sub-questions.
-    2) Retrieve context and answer each sub-question individually.
-    3) Generate a final synthetic answer based on the set of Q+A pairs from all sub-questions.
-    4) Return sources for each sub-question, aggregated into the final result.
-    """
-
-    print("[RAG Decomposition - Answer Individually]")
-
-    # 1) Sub-question generator chain (similar to the default decomposition approach)
-    template_decomp = """You are a helpful assistant that generates multiple sub-questions 
-related to an input question. Generate multiple search queries related to: {question}
-Output (3 queries):"""
-    
-    prompt_decomposition = ChatPromptTemplate.from_template(template_decomp)
-    generate_queries_decomposition = (
-        prompt_decomposition
-        | llm
-        | StrOutputParser()
-        | (lambda x: x.split("\n"))
-    )
-
-    # 2) For each sub-question, retrieve docs and do RAG
-    prompt_rag = hub.pull("rlm/rag-prompt")
-
-    def retrieve_and_rag(main_question, rag_prompt, sub_question_generator_chain):
-        """
-        Returns a list of dictionaries, each containing:
-        - sub_question: The sub-question text
-        - answer: The LLM's answer
-        - docs: The list of retrieved docs
-        - sources: The 'source' field from each doc's metadata
-        """
-        sub_questions = sub_question_generator_chain.invoke({"question": main_question})
-        all_sub_results = []
-
-        for sub_q in sub_questions:
-            sub_q_clean = sub_q.strip("1234567890. )-")
-
-            # Retrieve relevant documents
-            docs = vector_store.similarity_search(sub_q_clean)
-
-            # LLM prompt for each sub-question
-            answer = (rag_prompt | llm | StrOutputParser()).invoke({
-                "context": docs, 
-                "question": sub_q_clean
-            })
-
-            # Extract sources from each doc’s metadata
-            sub_sources = []
-            for d in docs:
-                # Example metadata field "source"
-                if d.metadata and d.metadata.get("source"):
-                    sub_sources.append(d.metadata["source"])
-
-            # Build a single structure for each sub-question
-            all_sub_results.append({
-                "sub_question": sub_q_clean,
-                "answer": answer,
-                "docs": docs,
-                "sources": list(set(sub_sources)),  # deduplicate if needed
-            })
-
-        return all_sub_results
-
-    # Execute retrieval & RAG for each sub-question
-    rag_results = retrieve_and_rag(query, prompt_rag, generate_queries_decomposition)
-
-    # 3) Format Q+A pairs for final synthesis
-    def format_qa_pairs(results_list):
-        """
-        Given a list of sub-question results, build a multi-line string of Q+A pairs.
-        """
-        formatted_str = []
-        for i, item in enumerate(results_list, start=1):
-            q = item["sub_question"]
-            a = item["answer"]
-            formatted_str.append(f"Question {i}: {q}\nAnswer {i}: {a}\n")
-        return "\n".join(formatted_str).strip()
-
-    # Combine sub-answers into a single Q&A string
-    context_qa = format_qa_pairs(rag_results)
-
-    # 4) Final prompt to synthesize one overall answer
-    final_template = """Here is a set of Q+A pairs:
-
-{context}
-
-Use these to synthesize an answer to the question: {question}
-"""
-    prompt_final = ChatPromptTemplate.from_template(final_template)
-
-    final_answer = (prompt_final | llm | StrOutputParser()).invoke({
-        "context": context_qa,
-        "question": query
-    })
-
-    # Collect all sources & docs from sub-questions
-    all_sources = []
-    all_docs = []
-    for item in rag_results:
-        all_sources.extend(item["sources"])
-        all_docs.extend(item["docs"])
-
-    # Deduplicate sources if needed
-    all_sources = list(set(all_sources))
-
-    return {
-        "method": "rag_decomposition_individual",
-        "query": query,
-        "results": [
-            {
-                "sub_query": query,
-                "answer": final_answer,
-                "sources": all_sources, 
-                "source_documents": all_docs  # if you want them all at once
-            }
-        ]
-    }
-
+    return outputs
 
 ###############################################################################
 # MAIN
@@ -571,15 +314,11 @@ def main():
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
-    parser.add_argument("-q", "--query", type=str, default="", help="Query to search for.")
-    parser.add_argument("-ss", "--perform_similarity_search", type=bool, default=False, help="Perform similarity search.")
-    parser.add_argument("-rq", "--perform_retrieval_qa", type=bool, default=False, help="Perform retrieval QA.")
-    parser.add_argument("-rdsb", "--perform_rag_step_back_prompting", type=bool, default=True, help="Perform RAG with step-back prompting.")
-    parser.add_argument("-rd", "--perform_rag_decomposition", type=bool, default=False, help="Perform RAG with decomposition.")
-    parser.add_argument("-rdar", "--perform_rag_decomposition_answer_recursively", type=bool, default=False, help="Perform RAG with decomposition and answer recursively.")
-    parser.add_argument("-rdai", "--perform_rag_decomposition_answer_individually", type=bool, default=False, help="Perform RAG with decomposition and answer individually.")
-
-
+    parser.add_argument("-q", "--query", type=str, default="Find Poached Eggs Recipes.", help="Query to perform.")
+    parser.add_argument("-ss", "--use_simlarity_search", type=bool, default=True, help="Use similarity search.")
+    parser.add_argument("-sr", "--use_self_query_retrieval", type=bool, default=False, help="Use self query retrieval.")
+    
+    
     # Parse the arguments
     args = parser.parse_args()
     
@@ -587,8 +326,18 @@ def main():
     start_date = args.start_date
     end_date = args.end_date
 
+    # Attempt spaCy load
+    global nlp
+
+    try:
+        nlp = spacy.load("en_core_web_sm")
+    except OSError:
+        print("Please install the spaCy en_core_web_sm model:")
+        print("  python -m spacy download en_core_web_sm")
+        raise
+
     # Load environment variables
-    load_dotenv(override=True)  # Load environment variables from .env
+    load_dotenv(override=True) # Load environment variables from .env
 
     SUPABASE_URL = os.getenv("SUPABASE_HTTPS_URL")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -605,11 +354,11 @@ def main():
         )
     )
 
-    # Initialize embeddings & LLM
+    # Initialize embeddings & LLMs
     embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
 
     chat_llm = ChatOpenAI(
-        model="gpt-4o",  # or "gpt-3.5-turbo", etc.
+        model="gpt-4o",
         temperature=0,
         openai_api_key=OPENAI_API_KEY
     )
@@ -617,8 +366,8 @@ def main():
     vector_store = SupabaseVectorStore(
         client=supabase_client,
         embedding=embeddings,
-        table_name="books",
-        query_name="match_books"
+        table_name="recipes",
+        query_name="match_recipes"
     )
 
     # Initialize Gutenberg cache
@@ -636,41 +385,25 @@ def main():
         )
         print(f"Found {len(matching_books)} books.")
 
-        for book_id, title in matching_books:
-            print(f"Processing: {title} (ID: {book_id})")
-
+        # Download, oversample paragraphs by 1 on each side for context
         print("Downloading and storing books...")
-        download_and_store_books(matching_books, vector_store)
+        download_and_store_books(matching_books, cache, vector_store)
 
-    # Perform a sample query
+
+    # Perform query
     query = args.query
-    print(f"Running query: {query}")
+    results = []
+    
+    if args.use_simlarity_search:
+        print(f"\nSimilarity search with: {query}")
+        results = perform_similarity_search(query, chat_llm, vector_store)
+    elif args.use_self_query_retrieval:
+        print(f"\nSelf-query retrieval with: {query}")
+        results = perform_self_query_retrieval(query, chat_llm, vector_store)
 
-    if args.perform_similarity_search:
-        results = perform_similarity_search(query, vector_store)
-    elif args.perform_retrieval_qa:
-        results = perform_retrieval_qa(query, chat_llm, vector_store)
-    elif args.perform_rag_step_back_prompting:
-        results = perform_rag_step_back_prompting(query, chat_llm, vector_store)
-    elif args.perform_rag_decomposition:
-        results = perform_rag_decomposition(query, chat_llm, vector_store)
-    elif args.perform_rag_decomposition_answer_recursively:
-        results = perform_rag_decomposition_answer_recursively(query, chat_llm, vector_store)
-    elif args.perform_rag_decomposition_answer_individually:
-        results = perform_rag_decomposition_answer_individually(query, chat_llm, vector_store)
-    else:
-        print("No operation selected. Use the CLI flags to choose an operation.")
-        return
-
-    # Print out the results
-    for i, res in enumerate(results['results'], start=1):
-        print(f"\n[Query {i}]: {res['sub_query']}")
-        print("\n[Answer]")
-        print(res["answer"])
-        print("\n[Source Documents]\n")
-        for doc in res["source_documents"]:
-            print("\n[Source]", doc.metadata.get("source"))
-            print("\n[Content]", doc.page_content)
+    for i, res in enumerate(results, start=1):
+        print(f"\n[Result {i}] Recipe: {res['recipe']}")
+        print(f"[Metadata] {res['metadata']}")
         print("-" * 70)
 
 

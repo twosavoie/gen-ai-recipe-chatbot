@@ -140,7 +140,7 @@ def create_books_similarity_search_tool():
         Returns the top matching chunks as JSON.
         """
         query = input.strip()
-        results = perform_books_similarity_search(query, chat_llm, books_vector_store)
+        results = perform_books_similarity_search(query, books_vector_store)
         # 'perform_similarity_search' might return Documents or a custom structure.
         # Convert it to JSON or a string
         return json.dumps(results, default=str)
@@ -237,7 +237,7 @@ def create_recipes_similarity_search_tool():
         Returns the top matching chunks as JSON.
         """
         query = input.strip()
-        results = perform_recipes_similarity_search (query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
+        results = perform_recipes_similarity_search (query, chat_llm, recipes_vector_store)
         return json.dumps(results, default=str)
     return get_recipes_similarity_search
 
