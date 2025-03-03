@@ -18,11 +18,6 @@ from langchain.retrievers.self_query.base import SelfQueryRetriever
 from supabase import create_client, Client
 from supabase.client import ClientOptions
 
-#nltk
-import nltk
-from nltk.corpus import stopwords
-from nltk import word_tokenize
-
 #spaCy
 import spacy
 
@@ -216,7 +211,7 @@ def download_and_store_books(matching_books, cache, vector_store):
     for i in range(0, len(documents), batch_size):
         batch = documents[i:i + batch_size]
         try:
-            vector_store.from_documents(
+            vector_store.add_documents(
                 batch
             )
             print(f"Successfully uploaded batch {i//batch_size + 1} "
@@ -331,11 +326,9 @@ def main():
     start_date = args.start_date
     end_date = args.end_date
 
-    # Ensure nltk resources are downloaded
-    nltk.download('punkt')
-    nltk.download('stopwords')
-
     # Attempt spaCy load
+    global nlp
+
     try:
         nlp = spacy.load("en_core_web_sm")
     except OSError:
@@ -403,7 +396,7 @@ def main():
     
     if args.use_simlarity_search:
         print(f"\nSimilarity search with: {query}")
-        results = perform_self_query_retrieval(query, chat_llm, vector_store)
+        results = perform_similarity_search(query, chat_llm, vector_store)
     elif args.use_self_query_retrieval:
         print(f"\nSelf-query retrieval with: {query}")
         results = perform_self_query_retrieval(query, chat_llm, vector_store)
