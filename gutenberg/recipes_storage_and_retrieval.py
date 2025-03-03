@@ -211,7 +211,7 @@ def download_and_store_books(matching_books, cache, vector_store):
     for i in range(0, len(documents), batch_size):
         batch = documents[i:i + batch_size]
         try:
-            vector_store.from_documents(
+            vector_store.add_documents(
                 batch
             )
             print(f"Successfully uploaded batch {i//batch_size + 1} "
@@ -327,6 +327,8 @@ def main():
     end_date = args.end_date
 
     # Attempt spaCy load
+    global nlp
+
     try:
         nlp = spacy.load("en_core_web_sm")
     except OSError:
