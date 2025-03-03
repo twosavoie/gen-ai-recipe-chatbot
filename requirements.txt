@@ -12,6 +12,5 @@ langchain-community
 langchain-openai
 langgraph
 lark
-nltk
 spacy
 gutenbergpy

@@ -823,7 +823,7 @@ def main():
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
-    parser.add_argument("-q", "--query", type=str, default="Find dessert recipes that combine french and italian cooking.", help="Query to search for.")
+    parser.add_argument("-q", "--query", type=str, default="Find dessert recipes that combine french and italian cooking.", help="Query for retrieval.")
     parser.add_argument("-ss", "--use_simlarity_search", type=bool, default=True, help="Use similarity search.")
     parser.add_argument("-sq", "--use_self_query", type=bool, default=False, help="Use self-query retrieval.")
     parser.add_argument("-hy", "--use_hyde", type=bool, default=False, help="Use hyde.")
