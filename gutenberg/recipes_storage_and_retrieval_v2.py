@@ -12,7 +12,6 @@ from gutenbergpy.textget import get_text_by_id
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain.chains.query_constructor.schema import AttributeInfo
 from langchain.retrievers.self_query.base import SelfQueryRetriever
@@ -665,10 +664,10 @@ def main():
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
+    parser.add_argument("-q", "--query", type=str, default="Find dessert recipes that combine french and italian cooking.", help="Query for retrieval.")
     parser.add_argument("-ss", "--use_similarity_search", type=bool, default=True, help="Use similarity search.")
     parser.add_argument("-sq", "--use_self_query", type=bool, default=False, help="Use self-query retrieval.")
     parser.add_argument("-mq", "--use_multi_query", type=bool, default=False, help="Use multi-query retrieval.")
-    parser.add_argument("-q", "--query", type=str, default="Find dessert recipes that combine french and italian cooking.", help="Query for retrieval.")
     
     args = parser.parse_args()
     
@@ -690,13 +689,6 @@ def main():
             storage_client_timeout=360,
             schema="public"
         )
-    )
-
-     # We'll keep the same LLM for classification calls
-    hyde_llm = ChatOpenAI(
-        model="gpt-4o",
-        temperature=1,
-        openai_api_key=OPENAI_API_KEY
     )
 
     chat_llm = ChatOpenAI(
