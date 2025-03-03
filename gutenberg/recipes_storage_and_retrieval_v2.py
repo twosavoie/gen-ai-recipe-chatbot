@@ -651,13 +651,6 @@ def main():
         )
     )
 
-     # We'll keep the same LLM for classification calls
-    hyde_llm = ChatOpenAI(
-        model="gpt-4o",
-        temperature=1,
-        openai_api_key=OPENAI_API_KEY
-    )
-
     chat_llm = ChatOpenAI(
         model="gpt-4o",
         temperature=0,
