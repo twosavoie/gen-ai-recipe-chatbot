@@ -315,7 +315,7 @@ def main():
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
     parser.add_argument("-q", "--query", type=str, default="Find Poached Eggs Recipes.", help="Query to perform.")
-    parser.add_argument("-ss", "--use_simlarity_search", type=bool, default=True, help="Use similarity search.")
+    parser.add_argument("-ss", "--use_simlarity_search", type=bool, default=False, help="Use similarity search.")
     parser.add_argument("-sr", "--use_self_query_retrieval", type=bool, default=False, help="Use self query retrieval.")
     
     
