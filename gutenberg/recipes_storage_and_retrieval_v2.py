@@ -665,10 +665,15 @@ def main():
         results = perform_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
     # =================================================================== #
 
-    for i, res in enumerate(results, start=1):
-        print(f"\n[Result {i}] Recipe: {res['recipe']}")
-        print(f"[Metadata] {res['metadata']}")
-        print("-" * 70)
+    # Print out the results
+    # Check if results is None or empty
+    if not results:
+        print(f"\nNo results found for query: {query}")
+    else:
+        for i, res in enumerate(results, start=1):
+            print(f"\n[Result {i}] Recipe: {res['recipe']}")
+            print(f"[Metadata] {res['metadata']}")
+            print("-" * 70)
 
 
 if __name__ == "__main__":
