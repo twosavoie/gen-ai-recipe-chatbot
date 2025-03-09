@@ -621,15 +621,19 @@ def main():
         description="Loading and testing a vector store."
     )
     
-    parser.add_argument("-lb", "--load_books", type=bool, default=False, help="Search and load books.")
+    parser.add_argument("-lb", "--load_books", action="store_true", help="Search and load books.")
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
     parser.add_argument("-q", "--query", type=str, default="Find dessert recipes that combine french and italian cooking.", help="Query for retrieval.")
-    parser.add_argument("-ss", "--use_similarity_search", type=bool, default=True, help="Use similarity search.")
-    parser.add_argument("-sq", "--use_self_query", type=bool, default=False, help="Use self-query retrieval.")
+    parser.add_argument("-ss", "--use_similarity_search", action="store_true", help="Use similarity search.")
+    parser.add_argument("-sq", "--use_self_query_retrieval", action="store_true", help="Use self-query retrieval.")
 
     args = parser.parse_args()
+
+    # Set default behavior: use similarity search if neither is specified
+    if not args.use_similarity_search and not args.use_self_query_retrieval:
+        args.use_similarity_search = True
     
     top_n = args.top_n
     start_date = args.start_date
@@ -704,7 +708,7 @@ def main():
     if args.use_similarity_search:
         print(f"\nSimilarity search with: {query}")
         results = perform_similarity_search(query, chat_llm, recipes_vector_store)
-    elif args.use_self_query:
+    elif args.use_self_query_retrieval:
         print(f"\nSelf-query retrieval with: {query}")
         results = perform_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
     # =================================================================== #
