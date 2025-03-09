@@ -145,12 +145,12 @@ def main():
         description="Loading and testing a vector store."
     )
     
-    parser.add_argument("-lb", "--load_books", type=bool, default=False, help="Search and load books.")
+    parser.add_argument("-lb", "--load_books", action="store_true", help="Search and load books.")
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
     parser.add_argument("-q", "--query", type=str, default="How to make a sponge cake with fruit flavor?", help="Query for retrieval.")
-    parser.add_argument("-ss", "--perform_similarity_search", type=bool, default=True, help="Perform similarity search.")
+    parser.add_argument("-ss", "--perform_similarity_search", action="store_true", help="Perform similarity search.")
 
     # Parse the arguments
     args = parser.parse_args()
