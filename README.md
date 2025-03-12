@@ -1,4 +1,4 @@
-# Setting up to run scripts using the openai API with Python.
+gti# Setting up to run scripts using the openai API with Python.
 
 The script will be run in a virtual environment. Start by creating a virtual environment:
 
