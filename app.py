@@ -16,9 +16,25 @@ from supabase import create_client
 from supabase.client import ClientOptions
 
 # LangChain imports
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import SupabaseVectorStore
+
+from langchain.agents import tool
+from langchain_community.query_constructors.supabase import SupabaseVectorTranslator
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
+
+# RAG imports
+from gutenberg.books_storage_and_retrieval import (
+    perform_similarity_search as perform_books_similarity_search,
+    perform_retrieval_qa as perform_books_retrieval_qa,
+)
+
+from gutenberg.recipes_storage_and_retrieval_v2 import (
+    perform_similarity_search as perform_recipes_similarity_search,
+    perform_self_query_retrieval as perform_recipes_self_query_retrieval,
+)
 
 # Load environment variables from a .env file
 load_dotenv(override=True)
@@ -61,6 +77,7 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # Initialize Supabase and LangChain components
+
 supabase_https_url = os.getenv("SUPABASE_HTTPS_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 
@@ -70,9 +87,91 @@ supabase_client = create_client(supabase_https_url, supabase_key, options=Client
     schema="public",
   ))
 
+embeddings = OpenAIEmbeddings(openai_api_key=api_key)
+
+books_vector_store = SupabaseVectorStore(
+    client=supabase_client,
+    table_name="books",
+    embedding=embeddings,
+    query_name="match_books"
+    )
+
+recipes_vector_store = SupabaseVectorStore(
+    client=supabase_client,
+    table_name="recipes",
+    embedding=embeddings,
+    query_name="match_recipes"
+    )
 
 # Define MemorySaver instance for langgraph agent
 memory = MemorySaver()
+
+
+# Create the agent tools for the RAG functions
+
+####################################################################
+# Similarity Search (Books)
+####################################################################
+def create_books_similarity_search_tool():
+    @tool
+    def get_books_similarity_search(input: str) -> str:
+        """
+        Tool to perform a simple similarity search on the 'books' vector store.
+        Returns the top matching chunks as JSON.
+        """
+        query = input.strip()
+        results = perform_books_similarity_search(query, books_vector_store)
+        # 'perform_similarity_search' might return Documents or a custom structure.
+        # Convert it to JSON or a string
+        return json.dumps(results, default=str)
+    return get_books_similarity_search
+
+
+####################################################################
+# Retrieval QA (Books)
+####################################################################
+def create_books_retrieval_qa_tool():
+    @tool
+    def get_books_retrieval_qa(input: str) -> str:
+        """
+        Tool for short Q&A over the 'books' corpus using retrieval QA.
+        """
+        query = input.strip()
+        chain_result = perform_books_retrieval_qa(query, chat_llm, books_vector_store)
+        # Typically returns a dict with 'answer', 'sources', 'source_documents', etc.
+        return json.dumps(chain_result, default=str)
+    return get_books_retrieval_qa
+
+####################################################################
+# Similarity Search (Recipes)
+####################################################################
+def create_recipes_similarity_search_tool():
+    @tool
+    def get_recipes_similarity_search(input: str) -> str:
+        """
+        Tool to perform a simple similarity search on the 'recipes' vector store.
+        Returns the top matching chunks as JSON.
+        """
+        query = input.strip()
+        results = perform_recipes_similarity_search (query, chat_llm, recipes_vector_store)
+        return json.dumps(results, default=str)
+    return get_recipes_similarity_search
+
+
+####################################################################
+# Self-Query Retrieval (Recipes)
+####################################################################
+def create_recipes_self_query_tool():
+    @tool
+    def get_recipes_self_query(input: str) -> str:
+        """
+        Tool for searching recipes with metadata-based self-query retrieval.
+        (E.g., filter by recipe_type, cuisine, special_considerations, etc.)
+        """
+        query = input.strip()
+        results = perform_recipes_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
+        return json.dumps(results, default=str)
+    return get_recipes_self_query
 
 
 # Routes
@@ -86,10 +185,20 @@ def index():
 @app.route("/stream", methods=["GET"])
 @login_required
 def stream():
+    # Set up the tools and graph as before
+    recipes_similarity_search_tool = create_recipes_similarity_search_tool()
+    recipes_self_query_tool = create_recipes_self_query_tool()
+    books_retrieval_qa_tool = create_books_retrieval_qa_tool()
+    books_similarity_search_tool = create_books_similarity_search_tool()
 
     graph = create_react_agent(
         model=chat_llm,
-        tools=[],
+        tools=[
+            recipes_similarity_search_tool,
+            recipes_self_query_tool,
+            books_retrieval_qa_tool,
+            books_similarity_search_tool,
+        ],
         checkpointer=memory,
         debug=True
     )
@@ -219,5 +328,4 @@ def log_run(run_status):
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()  # Ensure the database is created
-        print("Database created.")
     app.run(debug=True)
