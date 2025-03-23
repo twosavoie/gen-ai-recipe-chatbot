@@ -96,6 +96,7 @@ books_vector_store = SupabaseVectorStore(
     query_name="match_books"
     )
 
+# ! checking with V - I believe these should be _v2  
 recipes_vector_store = SupabaseVectorStore(
     client=supabase_client,
     table_name="recipes",
