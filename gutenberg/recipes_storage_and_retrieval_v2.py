@@ -18,6 +18,10 @@ from langchain.retrievers.self_query.base import SelfQueryRetriever
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from langchain_community.query_constructors.supabase import SupabaseVectorTranslator
 from langchain.chains.query_constructor.base import StructuredQueryOutputParser, get_query_constructor_prompt
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from typing import List
 
 
 # Supabase
@@ -551,16 +555,61 @@ def perform_self_query_retrieval(query, llm, vector_store, structured_query_tran
     return build_outputs(recipes, llm)
 
 
-def build_outputs(results, llm):
-    outputs = []
+###############################################################################
+# LLM CHAINS
+###############################################################################
 
-    for i, res in enumerate(results, start=1):
+def generate_nutrition_info_chain(llm):
+    """
+    Calculate estimated calories and macronutrients.
+    """
+    return ChatPromptTemplate.from_template (
+        """You are a nutrition assistant. Given a list of ingredients, estimate the total
+        calories, protein, carbs, and fat. Return only a single valid JSON object in this format.
+        
+        {text}"""
+    ) | llm | StrOutputParser()
+
+def generate_shopping_list_chain(llm):
+    """
+    Generate a shopping list from the given ingredients.
+    """
+    return ChatPromptTemplate.from_template (
+        """You are a shopping assistant. Create a shopping list of items for this recipe.
+           Return only a single valid JSON object in the following format.\n
+           {text}"""
+    ) | llm | StrOutputParser()
+
+def generate_factoids_chain(llm):
+    """
+    Generate interesting factoids about the recipe's ingredients and methods.
+    """
+    return ChatPromptTemplate.from_template (
+        """You are a culinary historian. Provide interesting factoids about its ingredients 
+        and methods. Return only a single valid JSON object in the following format.\n
+        {text}"""
+    ) | llm | StrOutputParser()
+
+
+def build_outputs(results: List[Document], llm) -> List[dict]:
+
+    chain = RunnableParallel(
+        nutrition=generate_nutrition_info_chain(llm),
+        shopping_list=generate_shopping_list_chain(llm),
+        factoids=generate_factoids_chain(llm),
+        recipe=RunnablePassthrough()
+    )
+
+    outputs = []
+    for i, recipe in enumerate(results, start=1):
+        output = chain.invoke({"text": recipe.page_content, "metadata": recipe.metadata})
         processed_output = {
-            "recipe": res.page_content,
-            "metadata": res.metadata
+            "nutrition": output["nutrition"],
+            "shopping_list": output["shopping_list"],
+            "factoids": output["factoids"],
+            "recipe": output["recipe"]
         }
         outputs.append(processed_output)
-
     return outputs
 
 ###############################################################################
@@ -576,13 +625,13 @@ def main():
     parser.add_argument("-n", "--top_n", type=int, default=3, help="Number of books to load.")
     parser.add_argument("-sd", "--start_date", type=str, default="1950-01-01", help="Search start date.")
     parser.add_argument("-ed", "--end_date", type=str, default="2000-12-31", help="Search end date.")
-    parser.add_argument("-q", "--query", type=str, default="Find Poached Eggs Recipes.", help="Query to perform.")
+    parser.add_argument("-q", "--query", type=str, default="Find dessert recipes that combine french and italian cooking.", help="Query for retrieval.")
     parser.add_argument("-ss", "--use_similarity_search", action="store_true", help="Use similarity search.")
-    parser.add_argument("-sr", "--use_self_query_retrieval", action="store_true", help="Use self query retrieval.")
+    parser.add_argument("-sq", "--use_self_query_retrieval", action="store_true", help="Use self-query retrieval.")
     
-    # Parse the arguments
+    # Parse the arguments 
     args = parser.parse_args()
-    
+
     # Set default behavior: use similarity search if neither is specified
     if not args.use_similarity_search and not args.use_self_query_retrieval:
         args.use_similarity_search = True
@@ -665,14 +714,16 @@ def main():
         results = perform_self_query_retrieval(query, chat_llm, recipes_vector_store, SupabaseVectorTranslator())
     # =================================================================== #
 
-    # Print out the results
     # Check if results is None or empty
     if not results:
         print(f"\nNo results found for query: {query}")
     else:
         for i, res in enumerate(results, start=1):
-            print(f"\n[Result {i}] Recipe: {res['recipe']}")
-            print(f"[Metadata] {res['metadata']}")
+            print(f"\n[Result {i}] Recipe: {res['recipe']['text']}")
+            print(f"[Metadata] {res['recipe']['metadata']}")
+            print(f"[Nutrition] {res['nutrition']}")
+            print(f"[Shopping List] {res['shopping_list']}")
+            print(f"[Factoids] {res['factoids']}")
             print("-" * 70)
 
 
