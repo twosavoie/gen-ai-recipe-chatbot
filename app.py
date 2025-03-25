@@ -96,12 +96,11 @@ books_vector_store = SupabaseVectorStore(
     query_name="match_books"
     )
 
-# ! checking with V - I believe these should be _v2  
 recipes_vector_store = SupabaseVectorStore(
     client=supabase_client,
-    table_name="recipes",
+    table_name="recipes_v2",
     embedding=embeddings,
-    query_name="match_recipes"
+    query_name="match_recipes_v2"
     )
 
 # Define MemorySaver instance for langgraph agent
