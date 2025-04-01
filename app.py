@@ -244,6 +244,8 @@ def stream():
 
     return Response(generate(), content_type="text/event-stream")
 
+
+
 # Sign up route
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
